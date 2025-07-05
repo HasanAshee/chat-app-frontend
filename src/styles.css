@@ -1,1 +1,29 @@
 /* You can add global styles to this file, and also import other style files */
+
+html, body { height: 100%; }
+body { margin: 0; font-family: Roboto, "Helvetica Neue", sans-serif; }
+
+/* Variables de Color (Tema Claro y Oscuro) */
+:root {
+  --background-color: #f0f2f5;
+  --component-bg-color: #ffffff;
+  --text-color: #1c1e21;
+  --secondary-text-color: #65676b;
+  --border-color: #ccc;
+  --outgoing-message-bg: #007bff;
+  --button-color: #007bff;
+  --input-bg:#e8e8e8;
+  --incoming-message-bg: #e9e9eb;
+}
+
+body.dark-mode {
+  --background-color: #18191a;
+  --component-bg-color: #242526;
+  --text-color: #e4e6eb;
+  --secondary-text-color: #b0b3b8;
+  --border-color: #3e4042;
+  --button-color: #620295;
+  --outgoing-message-bg: #620295;
+  --input-bg:#e0e0e1;
+  --incoming-message-bg: #3a3b3c;
+}
