@@ -3,6 +3,8 @@ import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Socket } from 'ngx-socket-io';
 import { MatSlideToggleModule } from '@angular/material/slide-toggle';
+import { environment } from '../environments/environment';
+
 
 
 interface Message {
@@ -100,6 +102,7 @@ export class AppComponent implements OnInit, AfterViewChecked  {
       this.usersInRoom = users as string[];
       this.cdr.detectChanges();
     });
+
   }
 
   private scrollToBottom(): void {
