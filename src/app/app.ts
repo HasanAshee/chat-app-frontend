@@ -83,7 +83,9 @@ export class AppComponent implements OnInit, AfterViewChecked  {
     });
 
     this.socket.fromEvent('chat message').subscribe((message: any) => {
-      this.messages.push(message as Message);
+      const msg = message as Message;
+      msg.createdAt = new Date();
+      this.messages.push(msg);
       this.cdr.detectChanges();
       this.scrollToBottom();
       this.shouldScroll = true;
