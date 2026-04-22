@@ -124,15 +124,6 @@ export class AppComponent implements OnInit, AfterViewChecked  {
   sendMessage() {
   if (!this.newMessage.trim()) return;
 
-  const messageToSend: Message = {
-    text: this.newMessage,
-    username: this.username,
-    type: 'message',
-    createdAt: new Date()
-  };
-
-  this.messages.push(messageToSend);
-  this.cdr.detectChanges();
   this.socket.emit('chat message', {
     room: this.room,
     message: this.newMessage,
