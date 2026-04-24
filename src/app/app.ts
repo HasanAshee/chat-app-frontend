@@ -9,10 +9,12 @@ import { environment } from '../environments/environment';
 
 
 interface Message {
+  _id?: string;
   text: string;
   username?: string;
   type: 'message' | 'notification';
   createdAt?: Date;
+  reactions?: { [emoji: string]: string[] };
 }
 
 @Component({
@@ -45,6 +47,9 @@ export class AppComponent implements OnInit, AfterViewChecked, OnDestroy  {
   private unreadMentions = 0;
   private originalTitle = '';
   private notificationSound!: HTMLAudioElement;
+
+  availableEmojis = ['👍', '❤️', '🤪​', '🦧​', '👻​', '❓​'];
+  showEmojiPickerForMessage: string | null = null;
 
   private shouldScroll = false;
 
@@ -148,11 +153,20 @@ export class AppComponent implements OnInit, AfterViewChecked, OnDestroy  {
       this.typingUser = '';
       this.cdr.detectChanges();
     });
+
     this.socket.fromEvent('update user list').subscribe((users: any) => {
       this.usersInRoom = users as string[];
       this.cdr.detectChanges();
     });
 
+    this.socket.fromEvent('message reaction updated').subscribe((data: any) => {
+      const { messageId, reactions } = data;
+      const message = this.messages.find(m => m._id === messageId);
+      if (message) {
+        message.reactions = reactions;
+        this.cdr.detectChanges();
+      }
+    });
   }
 
   ngOnDestroy(): void {
@@ -331,6 +345,38 @@ export class AppComponent implements OnInit, AfterViewChecked, OnDestroy  {
     } else {
       this.document.title = this.originalTitle;
     }
+  }
+
+  toggleEmojiPicker(messageId: string | undefined): void {
+    if (!messageId) return;
+
+    if (this.showEmojiPickerForMessage === messageId) {
+      this.showEmojiPickerForMessage = null;
+    } else {
+      this.showEmojiPickerForMessage = messageId;
+    }
+  }
+
+  reactToMessage(messageId: string | undefined, emoji: string): void {
+    if (!messageId) return;
+
+    this.socket.emit('toggle reaction', {
+      messageId,
+      emoji,
+      username: this.username,
+      room: this.room
+    });
+
+    this.showEmojiPickerForMessage = null;
+  }
+
+  getReactionEntries(reactions: { [emoji: string]: string[] } | undefined): Array<{ emoji: string; users: string[] }> {
+    if (!reactions) return [];
+    return Object.entries(reactions).map(([emoji, users]) => ({ emoji, users }));
+  }
+
+  hasUserReacted(users: string[]): boolean {
+    return users.includes(this.username);
   }
 
 }
