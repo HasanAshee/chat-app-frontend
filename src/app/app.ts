@@ -5,6 +5,7 @@ import { Socket } from 'ngx-socket-io';
 import { MatSlideToggleModule } from '@angular/material/slide-toggle';
 import { HttpClient } from '@angular/common/http';
 import { environment } from '../environments/environment';
+import { DomSanitizer, SafeHtml } from '@angular/platform-browser';
 
 
 
@@ -60,7 +61,8 @@ export class AppComponent implements OnInit, AfterViewChecked, OnDestroy  {
     private cdr: ChangeDetectorRef,
     private renderer: Renderer2,
     @Inject(DOCUMENT) private document: Document,
-    private http: HttpClient
+    private http: HttpClient,
+    private sanitizer: DomSanitizer
   ) {}
 
   ngAfterViewChecked() {
@@ -194,11 +196,25 @@ export class AppComponent implements OnInit, AfterViewChecked, OnDestroy  {
   sendMessage() {
     if (this.showMentionPopup) return;
     if (!this.newMessage.trim()) return;
-    this.socket.emit('chat message', {
-      room: this.room,
-      message: this.newMessage,
-      username: this.username
-    });
+
+    const result = this.processCommand(this.newMessage);
+
+    if (result.handled) {
+      if (result.messageToSend) {
+        this.socket.emit('chat message', {
+          room: this.room,
+          message: result.messageToSend,
+          username: this.username
+        });
+      }
+    } else {
+      this.socket.emit('chat message', {
+        room: this.room,
+        message: this.newMessage,
+        username: this.username
+      });
+    }
+
     this.socket.emit('stop typing', { room: this.room });
     this.newMessage = '';
   }
@@ -226,7 +242,7 @@ export class AppComponent implements OnInit, AfterViewChecked, OnDestroy  {
     this.room = roomName;
   }
 
-  renderMessage(text: string): string {
+  renderMessage(text: string): SafeHtml {
     if (!text) return '';
 
     const escaped = text
@@ -237,6 +253,14 @@ export class AppComponent implements OnInit, AfterViewChecked, OnDestroy  {
       .replace(/'/g, '&#039;');
 
     let result = escaped;
+
+    result = result.replace(/\[\[RAINBOW\]\](.*?)\[\[\/RAINBOW\]\]/g, (_, innerText) => {
+      const colors = ['#ff0000', '#ff7f00', '#ffd700', '#00cc00', '#0099ff', '#6600cc', '#ff00ff'];
+      return innerText.split('').map((char: string, i: number) => {
+        if (char === ' ') return char;
+        return `<span style="color: ${colors[i % colors.length]}; font-weight: 600">${char}</span>`;
+      }).join('');
+    });
 
     result = result.replace(/`([^`]+)`/g, '<code>$1</code>');
 
@@ -262,7 +286,7 @@ export class AppComponent implements OnInit, AfterViewChecked, OnDestroy  {
       '<a href="$1" target="_blank" rel="noopener noreferrer">$1</a>'
     );
 
-    return result;
+    return this.sanitizer.bypassSecurityTrustHtml(result);
   }
 
   isMentioningMe(text: string): boolean {
@@ -377,6 +401,118 @@ export class AppComponent implements OnInit, AfterViewChecked, OnDestroy  {
 
   hasUserReacted(users: string[]): boolean {
     return users.includes(this.username);
+  }
+
+  processCommand(rawMessage: string): { handled: boolean; messageToSend?: string } {
+    const trimmed = rawMessage.trim();
+    if (!trimmed.startsWith('/')) {
+      return { handled: false };
+    }
+
+    const spaceIndex = trimmed.indexOf(' ');
+    const command = spaceIndex === -1
+      ? trimmed.slice(1).toLowerCase()
+      : trimmed.slice(1, spaceIndex).toLowerCase();
+    const args = spaceIndex === -1 ? '' : trimmed.slice(spaceIndex + 1).trim();
+
+    switch (command) {
+      case 'me': {
+        if (!args) {
+          this.addLocalSystemMessage('Uso: /me <acción>.');
+          return { handled: true };
+        }
+        return { handled: true, messageToSend: `*${this.username} ${args}*` };
+      }
+
+      case 'clear': {
+        this.messages = [];
+        this.addLocalSystemMessage('Chat limpiado (solo en tu vista)');
+        return { handled: true };
+      }
+
+      case 'help': {
+        const helpText = [
+          'Comandos disponibles:',
+          '• /me <acción> — describe una acción',
+          '• /clear — limpia tu vista del chat',
+          '• /roll [NdM] — tira dados (default 1d6). Ejemplo: /roll 2d20',
+          '• /coin — tira una moneda',
+          '• /choose <op1>, <op2>, ... — elige una opción al azar',
+          '• /rainbow <texto> — texto con colores arcoíris',
+          '• /help — muestra esta ayuda'
+        ].join('\n');
+        this.addLocalSystemMessage(helpText);
+        return { handled: true };
+      }
+
+      case 'roll': {
+        const result = this.rollDice(args || '1d6');
+        if (result === null) {
+          this.addLocalSystemMessage('Formato inválido. Ejemplo: /roll 2d20');
+          return { handled: true };
+        }
+        return { handled: true, messageToSend: `🎲 ${this.username} tiró ${result.formula}: **${result.total}** ${result.rolls.length > 1 ? `(${result.rolls.join(' + ')})` : ''}` };
+      }
+
+      case 'coin': {
+        const outcome = Math.random() < 0.5 ? 'Cara' : 'Cruz';
+        return { handled: true, messageToSend: `🪙 ${this.username} tiró una moneda: **${outcome}**` };
+      }
+
+      case 'choose': {
+        if (!args) {
+          this.addLocalSystemMessage('Uso: /choose opción1, opción2, opción3');
+          return { handled: true };
+        }
+        const options = args.split(',').map(o => o.trim()).filter(o => o.length > 0);
+        if (options.length < 2) {
+          this.addLocalSystemMessage('Necesitás al menos 2 opciones separadas por coma');
+          return { handled: true };
+        }
+        const choice = options[Math.floor(Math.random() * options.length)];
+        return { handled: true, messageToSend: `🎯 ${this.username} eligió: **${choice}** (entre ${options.length} opciones)` };
+      }
+
+      case 'rainbow': {
+        if (!args) {
+          this.addLocalSystemMessage('Uso: /rainbow <texto>');
+          return { handled: true };
+        }
+        return { handled: true, messageToSend: `[[RAINBOW]]${args}[[/RAINBOW]]` };
+      }
+
+      default: {
+        this.addLocalSystemMessage(`Comando desconocido: /${command}. Usá /help para ver la lista.`);
+        return { handled: true };
+      }
+    }
+  }
+
+  private rollDice(formula: string): { formula: string; rolls: number[]; total: number } | null {
+    const match = formula.toLowerCase().match(/^(\d+)d(\d+)$/);
+    if (!match) return null;
+
+    const count = parseInt(match[1], 10);
+    const sides = parseInt(match[2], 10);
+
+    if (count < 1 || count > 20 || sides < 2 || sides > 1000) return null;
+
+    const rolls: number[] = [];
+    for (let i = 0; i < count; i++) {
+      rolls.push(Math.floor(Math.random() * sides) + 1);
+    }
+    const total = rolls.reduce((a, b) => a + b, 0);
+    return { formula: `${count}d${sides}`, rolls, total };
+  }
+
+  private addLocalSystemMessage(text: string): void {
+    this.messages.push({
+      text,
+      type: 'notification',
+      createdAt: new Date()
+    });
+    this.cdr.detectChanges();
+    this.shouldScroll = true;
   }
 
 }

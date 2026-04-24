@@ -566,3 +566,23 @@ button {
   left: auto;
   right: 0;
 }
+
+.message-text em {
+  font-style: italic;
+}
+
+.message-item.notification {
+  white-space: pre-line;
+  text-align: left;
+  padding: 10px 14px;
+  max-width: 90%;
+}
+
+.message-text .rainbow-char {
+  font-weight: 600;
+}
+
+.message-item.outgoing .message-text .rainbow-char,
+.message-item.incoming .message-text .rainbow-char {
+  color: inherit;
+}
