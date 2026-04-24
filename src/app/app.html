@@ -1,13 +1,27 @@
 <div class="container">
 
   @if (!isLoggedIn) {
-    <div class="login-box">
-      <h2>Únete al Chat</h2>
-      <input [(ngModel)]="username" placeholder="Tu nombre de usuario...">
-      <input [(ngModel)]="room" (keyup.enter)="joinChat()" placeholder="Nombre de la sala...">
-      <button (click)="joinChat()">Unirse</button>
-    </div>
-  } @else {
+  <div class="login-box">
+    <h2>Únete al Chat</h2>
+    <input [(ngModel)]="username" placeholder="Tu nombre de usuario...">
+    <input [(ngModel)]="room" (keyup.enter)="joinChat()" placeholder="Nombre de la sala...">
+    <button (click)="joinChat()">Unirse</button>
+
+    @if (activeRooms.length > 0) {
+      <div class="active-rooms">
+        <h4>Salas activas</h4>
+        <ul class="rooms-list">
+          @for (r of activeRooms; track r.name) {
+            <li class="room-item" (click)="selectRoom(r.name)">
+              <span class="room-name">{{ r.name }}</span>
+              <span class="room-count">{{ r.userCount }} {{ r.userCount === 1 ? 'usuario' : 'usuarios' }}</span>
+            </li>
+          }
+        </ul>
+      </div>
+    }
+  </div>
+} @else {
     <div class="main-chat-container">
 
       <div class="chat-box">

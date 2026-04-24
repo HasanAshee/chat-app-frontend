@@ -1,8 +1,9 @@
-import { Component, OnInit, ChangeDetectorRef, Renderer2, Inject, DOCUMENT, ViewChild, ElementRef, AfterViewChecked } from '@angular/core';
+import { Component, OnInit, ChangeDetectorRef, Renderer2, Inject, DOCUMENT, ViewChild, ElementRef, AfterViewChecked, OnDestroy } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Socket } from 'ngx-socket-io';
 import { MatSlideToggleModule } from '@angular/material/slide-toggle';
+import { HttpClient } from '@angular/common/http';
 import { environment } from '../environments/environment';
 
 
@@ -21,7 +22,7 @@ interface Message {
   templateUrl: './app.html',
   styleUrls: ['./app.css']
 })
-export class AppComponent implements OnInit, AfterViewChecked  {
+export class AppComponent implements OnInit, AfterViewChecked, OnDestroy  {
 
   @ViewChild('messageListContainer') private messageListContainer!: ElementRef;
 
@@ -33,6 +34,8 @@ export class AppComponent implements OnInit, AfterViewChecked  {
   typingUser = '';
   usersInRoom: string[] = [];
   private typingTimeout: any;
+  activeRooms: { name: string; userCount: number }[] = [];
+  private roomsInterval: any;
 
   private shouldScroll = false;
 
@@ -42,7 +45,8 @@ export class AppComponent implements OnInit, AfterViewChecked  {
     private socket: Socket,
     private cdr: ChangeDetectorRef,
     private renderer: Renderer2,
-    @Inject(DOCUMENT) private document: Document
+    @Inject(DOCUMENT) private document: Document,
+    private http: HttpClient
   ) {}
 
   ngAfterViewChecked() {
@@ -71,6 +75,14 @@ export class AppComponent implements OnInit, AfterViewChecked  {
   }
 
   ngOnInit(): void {
+
+    this.loadActiveRooms();
+    this.roomsInterval = setInterval(() => {
+      if (!this.isLoggedIn) {
+        this.loadActiveRooms();
+      }
+    }, 5000);
+
     const savedMode = localStorage.getItem('darkMode');
       if (savedMode && savedMode === 'true') {
         this.toggleDarkMode();
@@ -105,6 +117,12 @@ export class AppComponent implements OnInit, AfterViewChecked  {
       this.cdr.detectChanges();
     });
 
+  }
+
+  ngOnDestroy(): void {
+    if (this.roomsInterval) {
+      clearInterval(this.roomsInterval);
+    }
   }
 
   private scrollToBottom(): void {
@@ -142,5 +160,20 @@ export class AppComponent implements OnInit, AfterViewChecked  {
     this.typingTimeout = setTimeout(() => {
       this.socket.emit('stop typing', { room: this.room });
     }, 2000);
+  }
+
+  loadActiveRooms(): void {
+    this.http.get<{ name: string; userCount: number }[]>(`${environment.apiUrl}/rooms`)
+      .subscribe({
+        next: (rooms) => {
+          this.activeRooms = rooms;
+          this.cdr.detectChanges();
+        },
+        error: (err) => console.error('Error loading active rooms:', err)
+      });
+  }
+
+  selectRoom(roomName: string): void {
+    this.room = roomName;
   }
 }
