@@ -36,14 +36,15 @@
             <li class="message-item" [ngClass]="{
               'outgoing': msg.username === username,
               'incoming': msg.username && msg.username !== username,
-              'notification': msg.type === 'notification'
+              'notification': msg.type === 'notification',
+              'mentioned': msg.type === 'message' && isMentioningMe(msg.text)
             }">
               @if (msg.username && msg.username !== username) {
                 <div class="message-author" [style.color]="getUsernameColor(msg.username)">
                   {{ msg.username }}
                 </div>
               }
-              <div class="message-text">{{ msg.text }}</div>
+              <div class="message-text" [innerHTML]="renderMessage(msg.text)"></div>
 
               @if(msg.type === 'message' && msg.createdAt) {
                 <span class="message-timestamp">
@@ -59,7 +60,25 @@
           </div>
         }
         <div class="message-input">
-          <input [(ngModel)]="newMessage" (input)="onTyping()" (keyup.enter)="sendMessage()" placeholder="Escribe un mensaje...">
+          @if (showMentionPopup) {
+            <div class="mention-popup">
+              @for (user of mentionMatches; track user; let i = $index) {
+                <div
+                  class="mention-item"
+                  [class.selected]="i === selectedMentionIndex"
+                  [style.color]="getUsernameColor(user)"
+                  (click)="selectMention(user)">
+                  &#64;{{ user }}
+                </div>
+              }
+            </div>
+          }
+          <input
+            [(ngModel)]="newMessage"
+            (input)="onInputChange($event)"
+            (keydown)="handleMentionKey($event)"
+            (keyup.enter)="sendMessage()"
+            placeholder="Escribe un mensaje...">
           <button (click)="sendMessage()">Enviar</button>
         </div>
       </div>

@@ -37,6 +37,15 @@ export class AppComponent implements OnInit, AfterViewChecked, OnDestroy  {
   activeRooms: { name: string; userCount: number }[] = [];
   private roomsInterval: any;
 
+  mentionMatches: string[] = [];
+  showMentionPopup = false;
+  selectedMentionIndex = 0;
+  private mentionStartPos = -1;
+
+  private unreadMentions = 0;
+  private originalTitle = '';
+  private notificationSound!: HTMLAudioElement;
+
   private shouldScroll = false;
 
   isDarkMode = false;
@@ -76,6 +85,18 @@ export class AppComponent implements OnInit, AfterViewChecked, OnDestroy  {
 
   ngOnInit(): void {
 
+    this.originalTitle = this.document.title;
+
+    this.notificationSound = new Audio('/assets/notification.mp3');
+    this.notificationSound.volume = 0.4;
+
+    this.document.addEventListener('visibilitychange', () => {
+      if (!this.document.hidden) {
+        this.unreadMentions = 0;
+        this.updateTitle();
+      }
+    });
+
     this.loadActiveRooms();
     this.roomsInterval = setInterval(() => {
       if (!this.isLoggedIn) {
@@ -94,6 +115,9 @@ export class AppComponent implements OnInit, AfterViewChecked, OnDestroy  {
       this.shouldScroll = true;
     });
 
+    this.notificationSound = new Audio('/universfield-new-notification-010-352755.mp3');
+    this.notificationSound.volume = 0.4;
+
     this.socket.fromEvent('chat message').subscribe((message: any) => {
       const msg = message as Message;
       msg.createdAt = new Date();
@@ -101,6 +125,18 @@ export class AppComponent implements OnInit, AfterViewChecked, OnDestroy  {
       this.cdr.detectChanges();
       this.scrollToBottom();
       this.shouldScroll = true;
+
+      if (
+        msg.type === 'message' &&
+        msg.username !== this.username &&
+        this.isMentioningMe(msg.text) &&
+        this.document.hidden
+      ) {
+        this.unreadMentions++;
+        this.updateTitle();
+        this.notificationSound.play().catch(() => {
+        });
+      }
     });
 
     this.socket.fromEvent('user typing').subscribe((username: any) => {
@@ -142,17 +178,16 @@ export class AppComponent implements OnInit, AfterViewChecked, OnDestroy  {
   }
 
   sendMessage() {
-  if (!this.newMessage.trim()) return;
-
-  this.socket.emit('chat message', {
-    room: this.room,
-    message: this.newMessage,
-    username: this.username
-  });
-
-  this.socket.emit('stop typing', { room: this.room });
-  this.newMessage = '';
-}
+    if (this.showMentionPopup) return;
+    if (!this.newMessage.trim()) return;
+    this.socket.emit('chat message', {
+      room: this.room,
+      message: this.newMessage,
+      username: this.username
+    });
+    this.socket.emit('stop typing', { room: this.room });
+    this.newMessage = '';
+  }
 
   onTyping(): void {
     this.socket.emit('typing', { room: this.room, username: this.username });
@@ -176,4 +211,126 @@ export class AppComponent implements OnInit, AfterViewChecked, OnDestroy  {
   selectRoom(roomName: string): void {
     this.room = roomName;
   }
+
+  renderMessage(text: string): string {
+    if (!text) return '';
+
+    const escaped = text
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#039;');
+
+    let result = escaped;
+
+    result = result.replace(/`([^`]+)`/g, '<code>$1</code>');
+
+    result = result.replace(/\*\*([^\*]+)\*\*/g, '<strong>$1</strong>');
+
+    result = result.replace(/(?<!\*)\*([^\*]+)\*(?!\*)/g, '<em>$1</em>');
+
+    result = result.replace(/~~([^~]+)~~/g, '<del>$1</del>');
+
+    result = result.replace(/@(\w+)/g, (match, username) => {
+      const isRealUser = this.usersInRoom.includes(username);
+      const isSelf = username === this.username;
+
+      if (!isRealUser) return match;
+
+      const className = isSelf ? 'mention mention-self' : 'mention';
+      const color = this.getUsernameColor(username);
+      return `<span class="${className}" style="color: ${color}">@${username}</span>`;
+    });
+
+    result = result.replace(
+      /(https?:\/\/[^\s<]+)/g,
+      '<a href="$1" target="_blank" rel="noopener noreferrer">$1</a>'
+    );
+
+    return result;
+  }
+
+  isMentioningMe(text: string): boolean {
+    if (!text || !this.username) return false;
+    const regex = new RegExp(`@${this.username}\\b`, 'i');
+    return regex.test(text);
+  }
+
+  onInputChange(event: Event): void {
+    const input = event.target as HTMLInputElement;
+    const value = input.value;
+    const cursorPos = input.selectionStart || 0;
+
+    const textBeforeCursor = value.substring(0, cursorPos);
+    const atMatch = textBeforeCursor.match(/@(\w*)$/);
+
+    if (atMatch) {
+      this.mentionStartPos = atMatch.index!;
+      const query = atMatch[1].toLowerCase();
+
+      this.mentionMatches = this.usersInRoom
+        .filter(user =>
+          user !== this.username &&
+          user.toLowerCase().includes(query)
+        )
+        .slice(0, 5);
+
+      this.showMentionPopup = this.mentionMatches.length > 0;
+      this.selectedMentionIndex = 0;
+    } else {
+      this.showMentionPopup = false;
+      this.mentionStartPos = -1;
+    }
+
+    this.onTyping();
+  }
+
+  //TO DO: hacer un tipo de advertencia para que puedas enterarte de que hay estas opciones de personalizacion en el texto
+
+  selectMention(username: string): void {
+    if (this.mentionStartPos === -1) return;
+
+    const before = this.newMessage.substring(0, this.mentionStartPos);
+    const afterAtPos = this.newMessage.indexOf(' ', this.mentionStartPos);
+    const after = afterAtPos === -1
+      ? ''
+      : this.newMessage.substring(afterAtPos);
+
+    this.newMessage = `${before}@${username} ${after}`.trimEnd() + ' ';
+    this.showMentionPopup = false;
+    this.mentionStartPos = -1;
+    this.cdr.detectChanges();
+  }
+
+  handleMentionKey(event: KeyboardEvent): void {
+    if (!this.showMentionPopup || this.mentionMatches.length === 0) {
+      return;
+    }
+
+    if (event.key === 'ArrowDown') {
+      event.preventDefault();
+      this.selectedMentionIndex =
+        (this.selectedMentionIndex + 1) % this.mentionMatches.length;
+    } else if (event.key === 'ArrowUp') {
+      event.preventDefault();
+      this.selectedMentionIndex =
+        (this.selectedMentionIndex - 1 + this.mentionMatches.length) % this.mentionMatches.length;
+    } else if (event.key === 'Enter' || event.key === 'Tab') {
+      event.preventDefault();
+      this.selectMention(this.mentionMatches[this.selectedMentionIndex]);
+    } else if (event.key === 'Escape') {
+      event.preventDefault();
+      this.showMentionPopup = false;
+    }
+  }
+
+  private updateTitle(): void {
+    if (this.unreadMentions > 0) {
+      this.document.title = `(${this.unreadMentions}) ${this.originalTitle}`;
+    } else {
+      this.document.title = this.originalTitle;
+    }
+  }
+
 }
