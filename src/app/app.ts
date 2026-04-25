@@ -16,6 +16,14 @@ interface Message {
   type: 'message' | 'notification';
   createdAt?: Date;
   reactions?: { [emoji: string]: string[] };
+  replyTo?: string | null;
+  replyToSnapshot?: ReplySnapshot | null;
+}
+
+interface ReplySnapshot {
+  username: string;
+  nameColor: string;
+  text: string;
 }
 
 interface RoomUser {
@@ -76,6 +84,9 @@ export class AppComponent implements OnInit, AfterViewChecked, OnDestroy {
   selectedColor = '';
   isUpdatingColor = false;
   colorUpdateError = '';
+
+  replyingTo: Message | null = null;
+  highlightedMessageId: string | null = null;
 
   readonly colorPresets = [
     '#d946ef', '#4ade80', '#f97316', '#3b82f6',
@@ -339,25 +350,29 @@ export class AppComponent implements OnInit, AfterViewChecked, OnDestroy {
     if (!this.newMessage.trim()) return;
 
     const result = this.processCommand(this.newMessage);
+    const replyToId = this.replyingTo?._id || undefined;
 
     if (result.handled) {
       if (result.messageToSend) {
         this.socket.emit('chat message', {
           room: this.room,
           message: result.messageToSend,
-          username: this.username
+          username: this.username,
+          replyToId
         });
       }
     } else {
       this.socket.emit('chat message', {
         room: this.room,
         message: this.newMessage,
-        username: this.username
+        username: this.username,
+        replyToId
       });
     }
 
     this.socket.emit('stop typing', { room: this.room });
     this.newMessage = '';
+    this.replyingTo = null;
   }
 
   onTyping(): void {
@@ -761,5 +776,37 @@ export class AppComponent implements OnInit, AfterViewChecked, OnDestroy {
     this.closeHeaderMenu();
     this.leaveRoom();
     this.logout();
+  }
+
+  startReply(msg: Message): void {
+    if (!msg._id || msg.type !== 'message') return;
+    this.replyingTo = msg;
+    setTimeout(() => {
+      const input = document.querySelector<HTMLInputElement>('.message-input input');
+      input?.focus();
+    }, 0);
+  }
+
+  cancelReply(): void {
+    this.replyingTo = null;
+  }
+
+  scrollToMessage(messageId: string | null | undefined): void {
+    if (!messageId) return;
+    const el = document.querySelector<HTMLElement>(`[data-msg-id="${messageId}"]`);
+    if (!el) return;
+    el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+
+    this.highlightedMessageId = messageId;
+    this.cdr.detectChanges();
+    setTimeout(() => {
+      this.highlightedMessageId = null;
+      this.cdr.detectChanges();
+    }, 1500);
+  }
+
+  truncate(text: string | undefined, max: number = 80): string {
+    if (!text) return '';
+    return text.length > max ? text.slice(0, max) + '…' : text;
   }
 }

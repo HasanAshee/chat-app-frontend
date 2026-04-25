@@ -208,17 +208,36 @@
 
         <ul class="message-list" #messageListContainer>
           @for (msg of messages; track msg._id || $index) {
-            <li class="message-item" [ngClass]="{
-              'outgoing': msg.username === username,
-              'incoming': msg.username && msg.username !== username,
-              'notification': msg.type === 'notification',
-              'mentioned': msg.type === 'message' && isMentioningMe(msg.text)
-            }">
+            <li class="message-item"
+                [attr.data-msg-id]="msg._id"
+                [ngClass]="{
+                  'outgoing': msg.username === username,
+                  'incoming': msg.username && msg.username !== username,
+                  'notification': msg.type === 'notification',
+                  'mentioned': msg.type === 'message' && isMentioningMe(msg.text),
+                  'highlighted': msg._id && highlightedMessageId === msg._id
+                }">
               @if (msg.username && msg.username !== username) {
                 <div class="message-author" [style.color]="getUsernameColor(msg.username)">
                   {{ msg.username }}
                 </div>
               }
+
+              @if (msg.replyToSnapshot) {
+                <div
+                  class="reply-quote"
+                  [title]="msg.replyTo ? 'Ir al mensaje original' : ''"
+                  (click)="scrollToMessage(msg.replyTo)">
+                  <div class="reply-quote-bar" [style.background]="msg.replyToSnapshot.nameColor"></div>
+                  <div class="reply-quote-content">
+                    <div class="reply-quote-author" [style.color]="msg.replyToSnapshot.nameColor">
+                      {{ msg.replyToSnapshot.username }}
+                    </div>
+                    <div class="reply-quote-text">{{ truncate(msg.replyToSnapshot.text, 100) }}</div>
+                  </div>
+                </div>
+              }
+
               <div class="message-text" [innerHTML]="renderMessage(msg.text)"></div>
               @if(msg.type === 'message' && msg.createdAt) {
                 <span class="message-timestamp">
@@ -242,12 +261,30 @@
                   </div>
                 }
 
-                <button
-                  class="add-reaction-btn"
-                  (click)="toggleEmojiPicker(msg._id)"
-                  title="Agregar reacción">
-                  &#43;
-                </button>
+                <div class="message-actions">
+                  <button
+                    class="msg-action-btn"
+                    (click)="toggleEmojiPicker(msg._id)"
+                    title="Agregar reacción">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                      <circle cx="12" cy="12" r="10"></circle>
+                      <path d="M8 14s1.5 2 4 2 4-2 4-2"></path>
+                      <line x1="9" y1="9" x2="9.01" y2="9"></line>
+                      <line x1="15" y1="9" x2="15.01" y2="9"></line>
+                      <line x1="12" y1="8" x2="12" y2="8"></line>
+                    </svg>
+                  </button>
+
+                  <button
+                    class="msg-action-btn"
+                    (click)="startReply(msg)"
+                    title="Responder">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                      <polyline points="9 17 4 12 9 7"></polyline>
+                      <path d="M20 18v-2a4 4 0 0 0-4-4H4"></path>
+                    </svg>
+                  </button>
+                </div>
 
                 @if (showEmojiPickerForMessage === msg._id) {
                   <div class="emoji-picker">
@@ -272,6 +309,24 @@
         }
 
         <div class="message-input">
+          @if (replyingTo) {
+            <div class="reply-preview">
+              <div class="reply-preview-bar" [style.background]="replyingTo.nameColor || '#999'"></div>
+              <div class="reply-preview-content">
+                <div class="reply-preview-author" [style.color]="replyingTo.nameColor || '#999'">
+                  Respondiendo a {{ replyingTo.username }}
+                </div>
+                <div class="reply-preview-text">{{ truncate(replyingTo.text, 100) }}</div>
+              </div>
+              <button class="reply-preview-close" (click)="cancelReply()" title="Cancelar respuesta">
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <line x1="18" y1="6" x2="6" y2="18"></line>
+                  <line x1="6" y1="6" x2="18" y2="18"></line>
+                </svg>
+              </button>
+            </div>
+          }
+
           @if (showMentionPopup) {
             <div class="mention-popup">
               @for (user of mentionMatches; track user; let i = $index) {
