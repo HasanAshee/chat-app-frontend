@@ -1085,4 +1085,53 @@ export class AppComponent implements OnInit, AfterViewChecked, OnDestroy {
       error: (err) => console.error('Error marcando como leído:', err)
     });
   }
+
+  canReplyInDm(msg: Message): boolean {
+    if (!this.auth.isLoggedIn()) return false;
+    if (!msg.username || msg.username === this.username) return false;
+
+    const userInRoom = this.usersInRoom.find(u => u.username === msg.username);
+    if (userInRoom && userInRoom.isGuest) return false;
+
+    return true;
+  }
+
+  replyInDm(msg: Message): void {
+    if (!msg.username) return;
+
+    this.dm.openConversation(msg.username).subscribe({
+      next: (conv) => {
+        this.dm.openDmFromConversation(conv);
+
+        const dmState = this.dm.openDms().find(d => d.conversationId === conv._id);
+        if (dmState && !dmState.loadedHistory) {
+          this.loadDmHistory(conv._id);
+        }
+
+        this.markDmAsReadIfPossible(conv._id);
+
+        const quotePreview = this.truncate(msg.text, 120);
+        const quoted = `> ${msg.username} dijo en #${this.room}: "${quotePreview}"\n\n`;
+        this.dmInputs[conv._id] = quoted;
+
+        setTimeout(() => {
+          const input = document.querySelector<HTMLInputElement>(
+            `[data-dm-id="${conv._id}"] .dm-input`
+          );
+          input?.focus();
+          if (input) {
+            input.setSelectionRange(input.value.length, input.value.length);
+          }
+        }, 100);
+
+        this.cdr.detectChanges();
+      },
+      error: (err) => {
+        const errMsg = this.auth.getErrorMessage(err);
+        console.warn('No se pudo abrir DM:', errMsg);
+        alert(`No se pudo iniciar DM con ${msg.username}: ${errMsg}`);
+      }
+    });
+  }
+
 }
