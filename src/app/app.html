@@ -1,93 +1,201 @@
 <div class="container">
 
   @if (!isLoggedIn) {
-  <div class="login-box">
-    <h2>Únete al Chat</h2>
-    <input [(ngModel)]="username" placeholder="Tu nombre de usuario...">
-    <input [(ngModel)]="room" (keyup.enter)="joinChat()" placeholder="Nombre de la sala...">
-    <button (click)="joinChat()">Unirse</button>
+    <div class="login-box">
+      <h2>Únete al Chat</h2>
 
-    @if (activeRooms.length > 0) {
-      <div class="active-rooms">
-        <h4>Salas activas</h4>
-        <ul class="rooms-list">
-          @for (r of activeRooms; track r.name) {
-            <li class="room-item" (click)="selectRoom(r.name)">
-              <span class="room-name">{{ r.name }}</span>
-              <span class="room-count">{{ r.userCount }} {{ r.userCount === 1 ? 'usuario' : 'usuarios' }}</span>
-            </li>
-          }
-        </ul>
+      <div class="auth-tabs">
+        <button
+          class="auth-tab"
+          [class.active]="loginMode === 'guest'"
+          (click)="setLoginMode('guest')">
+          Invitado
+        </button>
+        <button
+          class="auth-tab"
+          [class.active]="loginMode === 'login'"
+          (click)="setLoginMode('login')"
+          [disabled]="auth.isLoggedIn()">
+          Iniciar sesión
+        </button>
+        <button
+          class="auth-tab"
+          [class.active]="loginMode === 'register'"
+          (click)="setLoginMode('register')"
+          [disabled]="auth.isLoggedIn()">
+          Crear cuenta
+        </button>
       </div>
-    }
-  </div>
-} @else {
+
+      @if (auth.isLoggedIn()) {
+        <div class="logged-in-banner">
+          <p>
+            Sesión iniciada como
+            <strong [style.color]="auth.currentUser()?.nameColor">
+              {{ auth.currentUser()?.username }}
+            </strong>
+          </p>
+          <button class="link-btn" (click)="logout()">Cerrar sesión</button>
+        </div>
+
+        <input
+          [(ngModel)]="room"
+          (keyup.enter)="joinAsAuthenticated()"
+          placeholder="Nombre de la sala...">
+        <button (click)="joinAsAuthenticated()">Unirse</button>
+      } @else {
+
+        <!-- guest -->
+        @if (loginMode === 'guest') {
+          <input
+            [(ngModel)]="username"
+            placeholder="Tu nombre de usuario...">
+          <input
+            [(ngModel)]="room"
+            (keyup.enter)="joinAsGuest()"
+            placeholder="Nombre de la sala...">
+          <button (click)="joinAsGuest()">Unirse</button>
+        }
+
+        <!-- login -->
+        @if (loginMode === 'login') {
+          <input
+            [(ngModel)]="username"
+            placeholder="Usuario">
+          <input
+            [(ngModel)]="password"
+            type="password"
+            (keyup.enter)="loginAccount()"
+            placeholder="Contraseña">
+          <button (click)="loginAccount()" [disabled]="isAuthLoading">
+            {{ isAuthLoading ? 'Entrando...' : 'Iniciar sesión' }}
+          </button>
+        }
+
+        <!-- register -->
+        @if (loginMode === 'register') {
+          <input
+            [(ngModel)]="username"
+            placeholder="Usuario (3-20 caracteres)">
+          <input
+            [(ngModel)]="password"
+            type="password"
+            (keyup.enter)="registerAccount()"
+            placeholder="Contraseña (mín. 6 caracteres)">
+          <button (click)="registerAccount()" [disabled]="isAuthLoading">
+            {{ isAuthLoading ? 'Creando cuenta...' : 'Crear cuenta' }}
+          </button>
+        }
+      }
+
+      @if (authError) {
+        <div class="auth-error">{{ authError }}</div>
+      }
+
+      @if (activeRooms.length > 0 && (loginMode === 'guest' || auth.isLoggedIn())) {
+        <div class="active-rooms">
+          <h4>Salas activas</h4>
+          <ul class="rooms-list">
+            @for (r of activeRooms; track r.name) {
+              <li class="room-item" (click)="selectRoom(r.name)">
+                <span class="room-name">{{ r.name }}</span>
+                <span class="room-count">{{ r.userCount }} {{ r.userCount === 1 ? 'usuario' : 'usuarios' }}</span>
+              </li>
+            }
+          </ul>
+        </div>
+      }
+    </div>
+  } @else {
     <div class="main-chat-container">
 
       <div class="chat-box">
         <h3 class="chat-header">
-          <span>Sala: {{ room }}</span>
-          <mat-slide-toggle [checked]="isDarkMode" (change)="toggleDarkMode()">
-            Modo Oscuro
-          </mat-slide-toggle>
-        </h3>
-        <ul class="message-list" #messageListContainer>
-        @for (msg of messages; track msg._id || $index) {
-          <li class="message-item" [ngClass]="{
-            'outgoing': msg.username === username,
-            'incoming': msg.username && msg.username !== username,
-            'notification': msg.type === 'notification',
-            'mentioned': msg.type === 'message' && isMentioningMe(msg.text)
-          }">
-            @if (msg.username && msg.username !== username) {
-              <div class="message-author" [style.color]="getUsernameColor(msg.username)">
-                {{ msg.username }}
-              </div>
-            }
-            <div class="message-text" [innerHTML]="renderMessage(msg.text)"></div>
-            @if(msg.type === 'message' && msg.createdAt) {
-              <span class="message-timestamp">
-                {{ msg.createdAt | date:'shortTime' }}
-              </span>
-            }
+          <span class="chat-header-title">Sala: {{ room }}</span>
 
-            @if (msg.type === 'message' && msg._id) {
-              @if (getReactionEntries(msg.reactions).length > 0) {
-                <div class="reactions-container">
-                  @for (reaction of getReactionEntries(msg.reactions); track reaction.emoji) {
-                    <button
-                      class="reaction-chip"
-                      [class.reacted-by-me]="hasUserReacted(reaction.users)"
-                      [title]="reaction.users.join(', ')"
-                      (click)="reactToMessage(msg._id, reaction.emoji)">
-                      <span class="reaction-emoji">{{ reaction.emoji }}</span>
-                      <span class="reaction-count">{{ reaction.users.length }}</span>
-                    </button>
-                  }
-                </div>
+          <div class="chat-header-right">
+            <span class="chat-header-user">
+              <span [style.color]="getUsernameColor(username)">{{ username }}</span>
+              @if (auth.isLoggedIn()) {
+                <span class="user-badge">cuenta</span>
+              } @else {
+                <span class="user-badge guest">invitado</span>
               }
+            </span>
 
-              <button
-                class="add-reaction-btn"
-                (click)="toggleEmojiPicker(msg._id)"
-                title="Agregar reacción">
-                &#43;
+            <mat-slide-toggle [checked]="isDarkMode" (change)="toggleDarkMode()">
+              Modo Oscuro
+            </mat-slide-toggle>
+
+            <button class="leave-btn" (click)="leaveRoom()" title="Salir de la sala">
+              Salir
+            </button>
+
+            @if (auth.isLoggedIn()) {
+              <button class="logout-btn" (click)="leaveRoom(); logout()" title="Cerrar sesión">
+                Cerrar sesión
               </button>
+            }
+          </div>
+        </h3>
 
-              @if (showEmojiPickerForMessage === msg._id) {
-                <div class="emoji-picker">
-                  @for (emoji of availableEmojis; track emoji) {
-                    <button
-                      class="emoji-picker-btn"
-                      (click)="reactToMessage(msg._id, emoji)">
-                      {{ emoji }}
-                    </button>
-                  }
+        <ul class="message-list" #messageListContainer>
+          @for (msg of messages; track msg._id || $index) {
+            <li class="message-item" [ngClass]="{
+              'outgoing': msg.username === username,
+              'incoming': msg.username && msg.username !== username,
+              'notification': msg.type === 'notification',
+              'mentioned': msg.type === 'message' && isMentioningMe(msg.text)
+            }">
+              @if (msg.username && msg.username !== username) {
+                <div class="message-author" [style.color]="getUsernameColor(msg.username)">
+                  {{ msg.username }}
                 </div>
               }
-            }
-          </li>
-        }
+              <div class="message-text" [innerHTML]="renderMessage(msg.text)"></div>
+              @if(msg.type === 'message' && msg.createdAt) {
+                <span class="message-timestamp">
+                  {{ msg.createdAt | date:'shortTime' }}
+                </span>
+              }
+
+              @if (msg.type === 'message' && msg._id) {
+                @if (getReactionEntries(msg.reactions).length > 0) {
+                  <div class="reactions-container">
+                    @for (reaction of getReactionEntries(msg.reactions); track reaction.emoji) {
+                      <button
+                        class="reaction-chip"
+                        [class.reacted-by-me]="hasUserReacted(reaction.users)"
+                        [title]="reaction.users.join(', ')"
+                        (click)="reactToMessage(msg._id, reaction.emoji)">
+                        <span class="reaction-emoji">{{ reaction.emoji }}</span>
+                        <span class="reaction-count">{{ reaction.users.length }}</span>
+                      </button>
+                    }
+                  </div>
+                }
+
+                <button
+                  class="add-reaction-btn"
+                  (click)="toggleEmojiPicker(msg._id)"
+                  title="Agregar reacción">
+                  &#43;
+                </button>
+
+                @if (showEmojiPickerForMessage === msg._id) {
+                  <div class="emoji-picker">
+                    @for (emoji of availableEmojis; track emoji) {
+                      <button
+                        class="emoji-picker-btn"
+                        (click)="reactToMessage(msg._id, emoji)">
+                        {{ emoji }}
+                      </button>
+                    }
+                  </div>
+                }
+              }
+            </li>
+          }
         </ul>
         @if (typingUser) {
           <div class="typing-indicator">
@@ -121,8 +229,13 @@
       <div class="user-list-box">
         <h4>Usuarios Conectados</h4>
         <ul>
-          @for (user of usersInRoom; track user) {
-            <li [style.color]="getUsernameColor(user)">{{ user }}</li>
+          @for (user of usersInRoom; track user.username) {
+            <li [style.color]="user.nameColor" [title]="user.isGuest ? 'Invitado' : 'Cuenta registrada'">
+              {{ user.username }}
+              @if (user.isGuest) {
+                <span class="user-list-badge">invitado</span>
+              }
+            </li>
           }
         </ul>
       </div>

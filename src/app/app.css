@@ -586,3 +586,188 @@ button {
 .message-item.incoming .message-text .rainbow-char {
   color: inherit;
 }
+
+.auth-tabs {
+  display: flex;
+  gap: 4px;
+  margin-bottom: 16px;
+  border-bottom: 1px solid #e0e0e0;
+}
+
+.auth-tab {
+  flex: 1;
+  background: transparent;
+  border: none;
+  padding: 10px 8px;
+  cursor: pointer;
+  font-size: 0.9rem;
+  color: #666;
+  border-bottom: 2px solid transparent;
+  transition: all 0.2s;
+}
+
+.auth-tab:hover:not(:disabled) {
+  color: #333;
+}
+
+.auth-tab.active {
+  color: #3b82f6;
+  border-bottom-color: #3b82f6;
+  font-weight: 600;
+}
+
+.auth-tab:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+body.dark-mode .auth-tab {
+  color: #aaa;
+}
+
+body.dark-mode .auth-tab.active {
+  color: #60a5fa;
+  border-bottom-color: #60a5fa;
+}
+
+body.dark-mode .auth-tabs {
+  border-bottom-color: #444;
+}
+
+.logged-in-banner {
+  background: rgba(59, 130, 246, 0.08);
+  border: 1px solid rgba(59, 130, 246, 0.2);
+  border-radius: 6px;
+  padding: 10px 12px;
+  margin-bottom: 12px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.logged-in-banner p {
+  margin: 0;
+  font-size: 0.9rem;
+}
+
+.link-btn {
+  background: transparent;
+  border: none;
+  color: #ef4444;
+  cursor: pointer;
+  font-size: 0.85rem;
+  text-decoration: underline;
+  padding: 0;
+}
+
+.link-btn:hover {
+  color: #dc2626;
+}
+
+.auth-error {
+  background: rgba(239, 68, 68, 0.1);
+  color: #b91c1c;
+  border: 1px solid rgba(239, 68, 68, 0.3);
+  border-radius: 6px;
+  padding: 8px 12px;
+  margin-top: 10px;
+  font-size: 0.85rem;
+  text-align: center;
+}
+
+body.dark-mode .auth-error {
+  background: rgba(239, 68, 68, 0.15);
+  color: #fca5a5;
+}
+
+.chat-header-title {
+  flex: 1;
+}
+
+.chat-header-right {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.chat-header-user {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.9rem;
+  font-weight: 500;
+}
+
+.user-badge {
+  font-size: 0.7rem;
+  padding: 2px 6px;
+  border-radius: 10px;
+  background: rgba(59, 130, 246, 0.15);
+  color: #2563eb;
+  font-weight: 500;
+}
+
+.user-badge.guest {
+  background: rgba(156, 163, 175, 0.2);
+  color: #6b7280;
+}
+
+body.dark-mode .user-badge {
+  background: rgba(96, 165, 250, 0.2);
+  color: #93c5fd;
+}
+
+body.dark-mode .user-badge.guest {
+  background: rgba(156, 163, 175, 0.15);
+  color: #9ca3af;
+}
+
+.leave-btn,
+.logout-btn {
+  background: transparent;
+  border: 1px solid #d1d5db;
+  color: #6b7280;
+  padding: 4px 10px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 0.8rem;
+}
+
+.leave-btn:hover {
+  border-color: #9ca3af;
+  color: #374151;
+}
+
+.logout-btn {
+  border-color: #fca5a5;
+  color: #dc2626;
+}
+
+.logout-btn:hover {
+  background: rgba(239, 68, 68, 0.05);
+}
+
+body.dark-mode .leave-btn,
+body.dark-mode .logout-btn {
+  border-color: #4b5563;
+  color: #9ca3af;
+}
+
+body.dark-mode .leave-btn:hover {
+  border-color: #6b7280;
+  color: #e5e7eb;
+}
+
+.user-list-badge {
+  font-size: 0.65rem;
+  padding: 1px 5px;
+  border-radius: 8px;
+  background: rgba(156, 163, 175, 0.2);
+  color: #6b7280;
+  margin-left: 4px;
+  font-weight: 400;
+  vertical-align: middle;
+}

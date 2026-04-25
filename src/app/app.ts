@@ -6,17 +6,25 @@ import { MatSlideToggleModule } from '@angular/material/slide-toggle';
 import { HttpClient } from '@angular/common/http';
 import { environment } from '../environments/environment';
 import { DomSanitizer, SafeHtml } from '@angular/platform-browser';
-
-
+import { AuthService } from './auth.service';
 
 interface Message {
   _id?: string;
   text: string;
   username?: string;
+  nameColor?: string;
   type: 'message' | 'notification';
   createdAt?: Date;
   reactions?: { [emoji: string]: string[] };
 }
+
+interface RoomUser {
+  username: string;
+  nameColor: string;
+  isGuest: boolean;
+}
+
+type LoginMode = 'guest' | 'login' | 'register';
 
 @Component({
   selector: 'app-root',
@@ -25,20 +33,26 @@ interface Message {
   templateUrl: './app.html',
   styleUrls: ['./app.css']
 })
-export class AppComponent implements OnInit, AfterViewChecked, OnDestroy  {
+export class AppComponent implements OnInit, AfterViewChecked, OnDestroy {
 
   @ViewChild('messageListContainer') private messageListContainer!: ElementRef;
 
   newMessage = '';
   messages: Message[] = [];
   username = '';
+  password = '';
   room = '';
   isLoggedIn = false;
   typingUser = '';
-  usersInRoom: string[] = [];
+  usersInRoom: RoomUser[] = [];
   private typingTimeout: any;
   activeRooms: { name: string; userCount: number }[] = [];
   private roomsInterval: any;
+
+  // Auth UI state
+  loginMode: LoginMode = 'guest';
+  authError = '';
+  isAuthLoading = false;
 
   mentionMatches: string[] = [];
   showMentionPopup = false;
@@ -62,7 +76,8 @@ export class AppComponent implements OnInit, AfterViewChecked, OnDestroy  {
     private renderer: Renderer2,
     @Inject(DOCUMENT) private document: Document,
     private http: HttpClient,
-    private sanitizer: DomSanitizer
+    private sanitizer: DomSanitizer,
+    public auth: AuthService
   ) {}
 
   ngAfterViewChecked() {
@@ -75,6 +90,12 @@ export class AppComponent implements OnInit, AfterViewChecked, OnDestroy  {
   private colorPalette = ['#d946ef', '#4ade80', '#f97316', '#3b82f6', '#ec4899', '#14b8a6'];
 
   getUsernameColor(username: string): string {
+    const inRoom = this.usersInRoom.find(u => u.username === username);
+    if (inRoom) return inRoom.nameColor;
+
+    const msgWithColor = this.messages.find(m => m.username === username && m.nameColor);
+    if (msgWithColor?.nameColor) return msgWithColor.nameColor;
+
     let hash = 0;
     for (let i = 0; i < username.length; i++) {
       hash = username.charCodeAt(i) + ((hash << 5) - hash);
@@ -112,14 +133,15 @@ export class AppComponent implements OnInit, AfterViewChecked, OnDestroy  {
     }, 5000);
 
     const savedMode = localStorage.getItem('darkMode');
-      if (savedMode && savedMode === 'true') {
-        this.toggleDarkMode();
+    if (savedMode && savedMode === 'true') {
+      this.toggleDarkMode();
     }
 
     this.socket.fromEvent('history').subscribe((history: any) => {
       this.messages = history as Message[];
       this.cdr.detectChanges();
       this.shouldScroll = true;
+      this.syncHistoricalColors();
     });
 
     this.notificationSound = new Audio('/universfield-new-notification-010-352755.mp3');
@@ -141,8 +163,7 @@ export class AppComponent implements OnInit, AfterViewChecked, OnDestroy  {
       ) {
         this.unreadMentions++;
         this.updateTitle();
-        this.notificationSound.play().catch(() => {
-        });
+        this.notificationSound.play().catch(() => {});
       }
     });
 
@@ -157,7 +178,7 @@ export class AppComponent implements OnInit, AfterViewChecked, OnDestroy  {
     });
 
     this.socket.fromEvent('update user list').subscribe((users: any) => {
-      this.usersInRoom = users as string[];
+      this.usersInRoom = users as RoomUser[];
       this.cdr.detectChanges();
     });
 
@@ -168,6 +189,29 @@ export class AppComponent implements OnInit, AfterViewChecked, OnDestroy  {
         message.reactions = reactions;
         this.cdr.detectChanges();
       }
+    });
+
+    this.socket.fromEvent('join error').subscribe((data: any) => {
+      this.authError = data?.message || 'Error al unirse a la sala';
+      this.isLoggedIn = false;
+      this.cdr.detectChanges();
+    });
+
+    this.socket.fromEvent('join success').subscribe((data: any) => {
+      this.username = data.username;
+      this.isLoggedIn = true;
+      this.authError = '';
+      this.cdr.detectChanges();
+    });
+
+    this.socket.fromEvent('user color updated').subscribe((data: any) => {
+      const { username, nameColor } = data;
+      const u = this.usersInRoom.find(x => x.username === username);
+      if (u) u.nameColor = nameColor;
+      this.messages.forEach(m => {
+        if (m.username === username) m.nameColor = nameColor;
+      });
+      this.cdr.detectChanges();
     });
   }
 
@@ -180,17 +224,102 @@ export class AppComponent implements OnInit, AfterViewChecked, OnDestroy  {
   private scrollToBottom(): void {
     try {
       this.messageListContainer.nativeElement.scrollTop = this.messageListContainer.nativeElement.scrollHeight;
-    } catch(err) {
+    } catch (err) {
       console.error('Error al hacer scroll:', err);
     }
   }
 
-  joinChat() {
-    if (this.username && this.room) {
-      this.isLoggedIn = true;
-      this.socket.emit('join room', { room: this.room, username: this.username });
-      this.cdr.detectChanges();
+  // ========== AUTH UI ==========
+  setLoginMode(mode: LoginMode): void {
+    this.loginMode = mode;
+    this.authError = '';
+    this.password = '';
+    const currentUser = this.auth.currentUser();
+    if (currentUser && mode !== 'guest') {
+      this.username = currentUser.username;
     }
+  }
+
+  loginAccount(): void {
+    if (!this.username || !this.password) {
+      this.authError = 'Completá usuario y contraseña';
+      return;
+    }
+    this.isAuthLoading = true;
+    this.authError = '';
+    this.auth.login(this.username, this.password).subscribe({
+      next: () => {
+        this.isAuthLoading = false;
+        this.password = '';
+      },
+      error: (err) => {
+        this.isAuthLoading = false;
+        this.authError = this.auth.getErrorMessage(err);
+      }
+    });
+  }
+
+  registerAccount(): void {
+    if (!this.username || !this.password) {
+      this.authError = 'Completá usuario y contraseña';
+      return;
+    }
+    this.isAuthLoading = true;
+    this.authError = '';
+    this.auth.register(this.username, this.password).subscribe({
+      next: () => {
+        this.isAuthLoading = false;
+        this.password = '';
+      },
+      error: (err) => {
+        this.isAuthLoading = false;
+        this.authError = this.auth.getErrorMessage(err);
+      }
+    });
+  }
+
+  joinAsGuest(): void {
+    if (!this.username || !this.room) {
+      this.authError = 'Completá nombre y sala';
+      return;
+    }
+    this.authError = '';
+    this.socket.emit('join room', { room: this.room, username: this.username });
+  }
+
+  joinAsAuthenticated(): void {
+    if (!this.room) {
+      this.authError = 'Ingresá el nombre de la sala';
+      return;
+    }
+    const token = this.auth.getToken();
+    if (!token) {
+      this.authError = 'Sesión perdida, volvé a iniciar sesión';
+      return;
+    }
+    this.authError = '';
+    this.socket.emit('join room', { room: this.room, token });
+  }
+
+  logout(): void {
+    this.auth.logout();
+    this.username = '';
+    this.password = '';
+  }
+
+  // Sale de la sala actual y vuelve al login (sin desloguear la cuenta)
+  leaveRoom(): void {
+    this.socket.disconnect();
+    this.socket.connect();
+    this.isLoggedIn = false;
+    this.messages = [];
+    this.usersInRoom = [];
+    this.room = '';
+    if (!this.auth.isLoggedIn()) {
+      this.username = '';
+    }
+    this.cdr.detectChanges();
+    this.loadActiveRooms();
   }
 
   sendMessage() {
@@ -238,6 +367,36 @@ export class AppComponent implements OnInit, AfterViewChecked, OnDestroy  {
       });
   }
 
+  private syncHistoricalColors(): void {
+    const inRoomUsernames = new Set(this.usersInRoom.map(u => u.username));
+    const historicalUsernames = new Set<string>();
+
+    for (const msg of this.messages) {
+      if (msg.username && !inRoomUsernames.has(msg.username)) {
+        historicalUsernames.add(msg.username);
+      }
+    }
+
+    if (historicalUsernames.size === 0) return;
+
+    const usernamesParam = Array.from(historicalUsernames).join(',');
+    this.http.get<{ [username: string]: string }>(
+      `${environment.apiUrl}/users/colors?usernames=${encodeURIComponent(usernamesParam)}`
+    ).subscribe({
+      next: (colorMap) => {
+        this.messages.forEach(msg => {
+          if (msg.username && colorMap[msg.username]) {
+            msg.nameColor = colorMap[msg.username];
+          }
+        });
+        this.cdr.detectChanges();
+      },
+      error: (err) => {
+        console.error('Error sincronizando colores históricos:', err);
+      }
+    });
+  }
+
   selectRoom(roomName: string): void {
     this.room = roomName;
   }
@@ -271,7 +430,7 @@ export class AppComponent implements OnInit, AfterViewChecked, OnDestroy  {
     result = result.replace(/~~([^~]+)~~/g, '<del>$1</del>');
 
     result = result.replace(/@(\w+)/g, (match, username) => {
-      const isRealUser = this.usersInRoom.includes(username);
+      const isRealUser = this.usersInRoom.some(u => u.username === username);
       const isSelf = username === this.username;
 
       if (!isRealUser) return match;
@@ -308,10 +467,11 @@ export class AppComponent implements OnInit, AfterViewChecked, OnDestroy  {
       const query = atMatch[1].toLowerCase();
 
       this.mentionMatches = this.usersInRoom
-        .filter(user =>
-          user !== this.username &&
-          user.toLowerCase().includes(query)
+        .filter(u =>
+          u.username !== this.username &&
+          u.username.toLowerCase().includes(query)
         )
+        .map(u => u.username)
         .slice(0, 5);
 
       this.showMentionPopup = this.mentionMatches.length > 0;
@@ -323,8 +483,6 @@ export class AppComponent implements OnInit, AfterViewChecked, OnDestroy  {
 
     this.onTyping();
   }
-
-  //TO DO: hacer un tipo de advertencia para que puedas enterarte de que hay estas opciones de personalizacion en el texto
 
   selectMention(username: string): void {
     if (this.mentionStartPos === -1) return;
@@ -514,5 +672,4 @@ export class AppComponent implements OnInit, AfterViewChecked, OnDestroy  {
     this.cdr.detectChanges();
     this.shouldScroll = true;
   }
-
 }
