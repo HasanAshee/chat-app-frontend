@@ -7,6 +7,7 @@ import { HttpClient } from '@angular/common/http';
 import { environment } from '../environments/environment';
 import { DomSanitizer, SafeHtml } from '@angular/platform-browser';
 import { AuthService } from './auth.service';
+import { DmService, ConversationSummary, DmMessage } from './dm.service';
 
 interface Message {
   _id?: string;
@@ -74,10 +75,17 @@ export class AppComponent implements OnInit, AfterViewChecked, OnDestroy {
   isSearching = false;
   private searchDebounceTimeout: any;
 
+  dmInputs: { [conversationId: string]: string } = {};
+  private dmTypingTimeouts: { [conversationId: string]: any } = {};
+
   mentionMatches: string[] = [];
   showMentionPopup = false;
   selectedMentionIndex = 0;
   private mentionStartPos = -1;
+
+  showDmList = false;
+  dmStartUsername = '';
+  dmStartError = '';
 
   private unreadMentions = 0;
   private originalTitle = '';
@@ -112,7 +120,8 @@ export class AppComponent implements OnInit, AfterViewChecked, OnDestroy {
     @Inject(DOCUMENT) private document: Document,
     private http: HttpClient,
     private sanitizer: DomSanitizer,
-    public auth: AuthService
+    public auth: AuthService,
+    public dm: DmService
   ) {}
 
   ngAfterViewChecked() {
@@ -248,6 +257,41 @@ export class AppComponent implements OnInit, AfterViewChecked, OnDestroy {
       });
       this.cdr.detectChanges();
     });
+    if (this.auth.isLoggedIn()) {
+      this.registerPersonalChannel();
+      this.dm.loadConversations().subscribe();
+    }
+
+    this.socket.fromEvent('dm message').subscribe((data: any) => {
+      const msg = data as DmMessage;
+      this.dm.appendMessage(msg);
+      this.cdr.detectChanges();
+      this.scrollDmToBottom(msg.conversationId);
+
+      const dmState = this.dm.openDms().find(d => d.conversationId === msg.conversationId);
+      const myUsername = this.auth.currentUser()?.username;
+      if (dmState && dmState.expanded && msg.from !== myUsername) {
+        this.markDmAsReadIfPossible(msg.conversationId);
+      }
+    });
+
+    this.socket.fromEvent('dm typing').subscribe((data: any) => {
+      this.dm.setTypingForDm(data.conversationId, data.from);
+      this.cdr.detectChanges();
+      setTimeout(() => {
+        this.dm.setTypingForDm(data.conversationId, null);
+        this.cdr.detectChanges();
+      }, 3000);
+    });
+
+    this.socket.fromEvent('dm stop typing').subscribe((data: any) => {
+      this.dm.setTypingForDm(data.conversationId, null);
+      this.cdr.detectChanges();
+    });
+
+    this.socket.fromEvent('dm read').subscribe((data: any) => {
+      console.log('DM read by:', data.readBy, 'in conversation:', data.conversationId);
+    });
   }
 
   ngOnDestroy(): void {
@@ -286,6 +330,8 @@ export class AppComponent implements OnInit, AfterViewChecked, OnDestroy {
       next: () => {
         this.isAuthLoading = false;
         this.password = '';
+        this.registerPersonalChannel();
+        this.dm.loadConversations().subscribe();
       },
       error: (err) => {
         this.isAuthLoading = false;
@@ -305,6 +351,8 @@ export class AppComponent implements OnInit, AfterViewChecked, OnDestroy {
       next: () => {
         this.isAuthLoading = false;
         this.password = '';
+        this.registerPersonalChannel();
+        this.dm.loadConversations().subscribe();
       },
       error: (err) => {
         this.isAuthLoading = false;
@@ -338,11 +386,11 @@ export class AppComponent implements OnInit, AfterViewChecked, OnDestroy {
 
   logout(): void {
     this.auth.logout();
+    this.dm.reset();
     this.username = '';
     this.password = '';
   }
 
-  // Sale de la sala actual y vuelve al login (sin desloguear la cuenta)
   leaveRoom(): void {
     this.socket.disconnect();
     this.socket.connect();
@@ -352,6 +400,8 @@ export class AppComponent implements OnInit, AfterViewChecked, OnDestroy {
     this.room = '';
     if (!this.auth.isLoggedIn()) {
       this.username = '';
+    } else {
+      setTimeout(() => this.registerPersonalChannel(), 100);
     }
     this.cdr.detectChanges();
     this.loadActiveRooms();
@@ -904,5 +954,135 @@ export class AppComponent implements OnInit, AfterViewChecked, OnDestroy {
 
     const highlighted = snippet.replace(regex, '<mark>$1</mark>');
     return this.sanitizer.bypassSecurityTrustHtml(highlighted);
+  }
+
+  private registerPersonalChannel(): void {
+    const token = this.auth.getToken();
+    if (!token) return;
+    setTimeout(() => {
+      this.socket.emit('register user channel', { token });
+      console.log('[DM] register user channel sent');
+    }, 200);
+  }
+
+  toggleDmList(): void {
+    this.showDmList = !this.showDmList;
+    this.dmStartError = '';
+    if (this.showDmList) {
+      this.dm.loadConversations().subscribe();
+    }
+  }
+
+  startNewDm(): void {
+    const target = this.dmStartUsername.trim();
+    if (!target) {
+      this.dmStartError = 'Ingresá un nombre de usuario';
+      return;
+    }
+    this.dmStartError = '';
+
+    this.dm.openConversation(target).subscribe({
+      next: (conv) => {
+        this.dm.openDmFromConversation(conv);
+        this.dmStartUsername = '';
+        this.showDmList = false;
+        this.loadDmHistory(conv._id);
+        this.markDmAsReadIfPossible(conv._id);
+      },
+      error: (err) => {
+        this.dmStartError = this.auth.getErrorMessage(err);
+      }
+    });
+  }
+
+  openDmFromList(conv: ConversationSummary): void {
+    this.dm.openDmFromConversation(conv);
+    this.showDmList = false;
+
+    const dmState = this.dm.openDms().find(d => d.conversationId === conv._id);
+    if (dmState && !dmState.loadedHistory) {
+      this.loadDmHistory(conv._id);
+    }
+    this.markDmAsReadIfPossible(conv._id);
+  }
+
+  toggleDmExpand(conversationId: string): void {
+    this.dm.toggleDmExpand(conversationId);
+
+    const dmState = this.dm.openDms().find(d => d.conversationId === conversationId);
+    if (dmState && dmState.expanded) {
+      if (!dmState.loadedHistory) {
+        this.loadDmHistory(conversationId);
+      }
+      this.markDmAsReadIfPossible(conversationId);
+    }
+  }
+
+  private loadDmHistory(conversationId: string): void {
+    this.dm.loadMessages(conversationId).subscribe({
+      next: (messages) => {
+        this.dm.setMessagesForDm(conversationId, messages);
+        this.cdr.detectChanges();
+        this.scrollDmToBottom(conversationId);
+      },
+      error: (err) => {
+        console.error('Error cargando historial de DM:', err);
+      }
+    });
+  }
+
+  closeDm(conversationId: string): void {
+    this.dm.closeDm(conversationId);
+  }
+
+  sendDmMessage(conversationId: string): void {
+    const text = (this.dmInputs[conversationId] || '').trim();
+    if (!text) return;
+
+    const token = this.auth.getToken();
+    if (!token) return;
+
+    this.socket.emit('dm send', {
+      conversationId,
+      text,
+      token
+    });
+
+    this.socket.emit('dm stop typing', { conversationId, token });
+
+    this.dmInputs[conversationId] = '';
+  }
+
+  onDmInputChange(conversationId: string): void {
+    const token = this.auth.getToken();
+    if (!token) return;
+
+    this.socket.emit('dm typing', { conversationId, token });
+
+    clearTimeout(this.dmTypingTimeouts[conversationId]);
+    this.dmTypingTimeouts[conversationId] = setTimeout(() => {
+      this.socket.emit('dm stop typing', { conversationId, token });
+    }, 2000);
+  }
+
+  trackDmMessage(_: number, msg: DmMessage): string {
+    return msg._id;
+  }
+
+  scrollDmToBottom(conversationId: string): void {
+    setTimeout(() => {
+      const el = document.querySelector<HTMLElement>(
+        `[data-dm-id="${conversationId}"] .dm-messages-list`
+      );
+      if (el) {
+        el.scrollTop = el.scrollHeight;
+      }
+    }, 0);
+  }
+
+  private markDmAsReadIfPossible(conversationId: string): void {
+    this.dm.markAsRead(conversationId).subscribe({
+      error: (err) => console.error('Error marcando como leído:', err)
+    });
   }
 }

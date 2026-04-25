@@ -475,4 +475,180 @@
     </div>
   }
 
+  @if (auth.isLoggedIn()) {
+    <div class="dm-dock">
+      @for (dm of dm.openDms(); track dm.conversationId) {
+        <div class="dm-popup" [class.expanded]="dm.expanded" [class.minimized]="!dm.expanded">
+
+          <div class="dm-popup-header" (click)="dm.expanded ? null : toggleDmExpand(dm.conversationId)">
+            <div class="dm-popup-user">
+              <div class="dm-avatar" [style.background]="dm.otherNameColor">
+                {{ dm.otherUsername.charAt(0).toUpperCase() }}
+              </div>
+              <span class="dm-popup-username" [style.color]="dm.otherNameColor">
+                {{ dm.otherUsername }}
+              </span>
+            </div>
+
+            <div class="dm-popup-actions">
+              <button
+                class="dm-popup-btn"
+                (click)="$event.stopPropagation(); toggleDmExpand(dm.conversationId)"
+                [title]="dm.expanded ? 'Minimizar' : 'Expandir'">
+                @if (dm.expanded) {
+                  <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <line x1="5" y1="12" x2="19" y2="12"></line>
+                  </svg>
+                } @else {
+                  <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <polyline points="18 15 12 9 6 15"></polyline>
+                  </svg>
+                }
+              </button>
+              <button
+                class="dm-popup-btn"
+                (click)="$event.stopPropagation(); closeDm(dm.conversationId)"
+                title="Cerrar">
+                <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <line x1="18" y1="6" x2="6" y2="18"></line>
+                  <line x1="6" y1="6" x2="18" y2="18"></line>
+                </svg>
+              </button>
+            </div>
+          </div>
+
+          @if (dm.expanded) {
+            <div class="dm-popup-body" [attr.data-dm-id]="dm.conversationId">
+              <ul class="dm-messages-list">
+                @if (dm.messages.length === 0 && dm.loadedHistory) {
+                  <li class="dm-empty-state">
+                    Sin mensajes todavía. Mandá el primero.
+                  </li>
+                }
+                @for (msg of dm.messages; track trackDmMessage($index, msg)) {
+                  <li class="dm-message-item" [ngClass]="{
+                    'outgoing': msg.from === username,
+                    'incoming': msg.from !== username
+                  }">
+                    @if (msg.from !== username) {
+                      <div class="dm-message-author" [style.color]="msg.fromColor">
+                        {{ msg.from }}
+                      </div>
+                    }
+                    <div class="dm-message-text" [innerHTML]="renderMessage(msg.text)"></div>
+                    @if (msg.createdAt) {
+                      <span class="dm-message-time">
+                        {{ msg.createdAt | date:'shortTime' }}
+                      </span>
+                    }
+                  </li>
+                }
+              </ul>
+
+              @if (dm.typingUser) {
+                <div class="dm-typing-indicator">
+                  <em>{{ dm.typingUser }} está escribiendo...</em>
+                </div>
+              }
+
+              <div class="dm-input-row">
+                <input
+                  [(ngModel)]="dmInputs[dm.conversationId]"
+                  (input)="onDmInputChange(dm.conversationId)"
+                  (keyup.enter)="sendDmMessage(dm.conversationId)"
+                  placeholder="Escribí un mensaje..."
+                  class="dm-input">
+                <button
+                  class="dm-send-btn"
+                  (click)="sendDmMessage(dm.conversationId)"
+                  [disabled]="!dmInputs[dm.conversationId]?.trim()"
+                  title="Enviar">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <line x1="22" y1="2" x2="11" y2="13"></line>
+                    <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
+                  </svg>
+                </button>
+              </div>
+            </div>
+          }
+
+        </div>
+      }
+
+      <div class="dm-dock-main" [class.open]="showDmList">
+        @if (showDmList) {
+          <div class="dm-list-panel">
+            <div class="dm-list-header">
+              <h3>Mensajes</h3>
+              <button class="dm-popup-btn" (click)="toggleDmList()" title="Cerrar">
+                <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <line x1="18" y1="6" x2="6" y2="18"></line>
+                  <line x1="6" y1="6" x2="18" y2="18"></line>
+                </svg>
+              </button>
+            </div>
+
+            <div class="dm-list-search">
+              <input
+                [(ngModel)]="dmStartUsername"
+                (keyup.enter)="startNewDm()"
+                placeholder="Iniciar DM con un usuario..."
+                class="dm-list-search-input">
+              <button class="dm-list-start-btn" (click)="startNewDm()">Abrir</button>
+            </div>
+
+            @if (dmStartError) {
+              <div class="dm-list-error">{{ dmStartError }}</div>
+            }
+
+            <div class="dm-list-items">
+              @if (dm.conversations().length === 0) {
+                <div class="dm-list-empty">
+                  Todavía no tenés conversaciones. Empezá una arriba.
+                </div>
+              } @else {
+                @for (conv of dm.conversations(); track conv._id) {
+                  <button class="dm-list-item" (click)="openDmFromList(conv)">
+                    <div class="dm-avatar" [style.background]="conv.otherNameColor">
+                      {{ conv.otherUsername.charAt(0).toUpperCase() }}
+                    </div>
+                    <div class="dm-list-item-content">
+                      <div class="dm-list-item-header">
+                        <span class="dm-list-item-name" [style.color]="conv.otherNameColor">
+                          {{ conv.otherUsername }}
+                        </span>
+                        @if (conv.unreadCount > 0) {
+                          <span class="dm-list-item-badge">{{ conv.unreadCount }}</span>
+                        }
+                      </div>
+                      <div class="dm-list-item-preview">
+                        @if (conv.lastMessagePreview) {
+                          @if (conv.lastMessageFrom === username) {
+                            <span class="dm-preview-prefix">Vos:</span>
+                          }
+                          {{ conv.lastMessagePreview }}
+                        } @else {
+                          <span class="dm-preview-empty">Sin mensajes todavía</span>
+                        }
+                      </div>
+                    </div>
+                  </button>
+                }
+              }
+            </div>
+          </div>
+        }
+
+        <button class="dm-dock-toggle" (click)="toggleDmList()">
+          <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
+          </svg>
+          <span>Mensajes</span>
+          @if (dm.totalUnread() > 0) {
+            <span class="dm-dock-badge">{{ dm.totalUnread() }}</span>
+          }
+        </button>
+      </div>
+    </div>
+  }
 </div>
