@@ -62,6 +62,18 @@ export class AppComponent implements OnInit, AfterViewChecked, OnDestroy {
   authError = '';
   isAuthLoading = false;
 
+  showSearchDropdown = false;
+  searchQuery = '';
+  searchResults: Array<{
+    _id: string;
+    text: string;
+    username: string;
+    nameColor: string;
+    createdAt: string;
+  }> = [];
+  isSearching = false;
+  private searchDebounceTimeout: any;
+
   mentionMatches: string[] = [];
   showMentionPopup = false;
   selectedMentionIndex = 0;
@@ -808,5 +820,89 @@ export class AppComponent implements OnInit, AfterViewChecked, OnDestroy {
   truncate(text: string | undefined, max: number = 80): string {
     if (!text) return '';
     return text.length > max ? text.slice(0, max) + '…' : text;
+  }
+
+  toggleSearchDropdown(): void {
+    this.showSearchDropdown = !this.showSearchDropdown;
+    if (this.showSearchDropdown) {
+      setTimeout(() => {
+        const input = document.querySelector<HTMLInputElement>('.search-input');
+        input?.focus();
+      }, 50);
+    } else {
+      this.searchQuery = '';
+      this.searchResults = [];
+    }
+  }
+
+  closeSearchDropdown(): void {
+    this.showSearchDropdown = false;
+    this.searchQuery = '';
+    this.searchResults = [];
+  }
+
+  onSearchInput(): void {
+    clearTimeout(this.searchDebounceTimeout);
+
+    const q = this.searchQuery.trim();
+    if (q.length < 2) {
+      this.searchResults = [];
+      this.isSearching = false;
+      return;
+    }
+
+    this.isSearching = true;
+    this.searchDebounceTimeout = setTimeout(() => {
+      this.runSearch(q);
+    }, 300);
+  }
+
+  private runSearch(q: string): void {
+    const params = new URLSearchParams({ room: this.room, q });
+    this.http.get<any[]>(`${environment.apiUrl}/messages/search?${params.toString()}`)
+      .subscribe({
+        next: (results) => {
+          this.searchResults = results;
+          this.isSearching = false;
+          this.cdr.detectChanges();
+        },
+        error: (err) => {
+          console.error('Error buscando:', err);
+          this.searchResults = [];
+          this.isSearching = false;
+          this.cdr.detectChanges();
+        }
+      });
+  }
+
+  selectSearchResult(messageId: string): void {
+    this.closeSearchDropdown();
+    setTimeout(() => {
+      this.scrollToMessage(messageId);
+    }, 100);
+  }
+
+  highlightMatch(text: string, query: string): SafeHtml {
+    if (!text || !query) return text || '';
+
+    const escapedText = text
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;');
+
+    const escapedQuery = query.trim().replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const regex = new RegExp(`(${escapedQuery})`, 'gi');
+
+    const match = escapedText.match(regex);
+    let snippet = escapedText;
+    if (match && escapedText.length > 100) {
+      const matchIndex = escapedText.toLowerCase().indexOf(query.toLowerCase());
+      const start = Math.max(0, matchIndex - 30);
+      const end = Math.min(escapedText.length, matchIndex + query.length + 50);
+      snippet = (start > 0 ? '…' : '') + escapedText.slice(start, end) + (end < escapedText.length ? '…' : '');
+    }
+
+    const highlighted = snippet.replace(regex, '<mark>$1</mark>');
+    return this.sanitizer.bypassSecurityTrustHtml(highlighted);
   }
 }
