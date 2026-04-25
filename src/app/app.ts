@@ -70,6 +70,18 @@ export class AppComponent implements OnInit, AfterViewChecked, OnDestroy {
 
   isDarkMode = false;
 
+  showHeaderMenu = false;
+
+  showSettingsModal = false;
+  selectedColor = '';
+  isUpdatingColor = false;
+  colorUpdateError = '';
+
+  readonly colorPresets = [
+    '#d946ef', '#4ade80', '#f97316', '#3b82f6',
+    '#ec4899', '#14b8a6', '#eab308', '#ef4444'
+  ];
+
   constructor(
     private socket: Socket,
     private cdr: ChangeDetectorRef,
@@ -671,5 +683,83 @@ export class AppComponent implements OnInit, AfterViewChecked, OnDestroy {
     });
     this.cdr.detectChanges();
     this.shouldScroll = true;
+  }
+  openSettings(): void {
+    this.selectedColor = this.auth.currentUser()?.nameColor || '#3b82f6';
+    this.colorUpdateError = '';
+    this.showSettingsModal = true;
+  }
+
+  closeSettings(): void {
+    this.showSettingsModal = false;
+    this.colorUpdateError = '';
+  }
+
+  selectColor(color: string): void {
+    this.selectedColor = color;
+  }
+
+  saveColor(): void {
+    if (!this.auth.isLoggedIn()) return;
+    if (!this.selectedColor) return;
+
+    if (!/^#[0-9a-fA-F]{6}$/.test(this.selectedColor)) {
+      this.colorUpdateError = 'Color inválido';
+      return;
+    }
+
+    this.isUpdatingColor = true;
+    this.colorUpdateError = '';
+
+    this.auth.updateColor(this.selectedColor).subscribe({
+      next: (user) => {
+        this.isUpdatingColor = false;
+
+        if (this.isLoggedIn && this.room) {
+          this.socket.emit('color changed', { nameColor: user.nameColor });
+        }
+
+        const myEntry = this.usersInRoom.find(u => u.username === this.username);
+        if (myEntry) myEntry.nameColor = user.nameColor;
+
+        this.messages.forEach(m => {
+          if (m.username === this.username) m.nameColor = user.nameColor;
+        });
+
+        this.cdr.detectChanges();
+        this.closeSettings();
+      },
+      error: (err) => {
+        this.isUpdatingColor = false;
+        this.colorUpdateError = this.auth.getErrorMessage(err);
+      }
+    });
+  }
+  toggleHeaderMenu(): void {
+    this.showHeaderMenu = !this.showHeaderMenu;
+  }
+
+  closeHeaderMenu(): void {
+    this.showHeaderMenu = false;
+  }
+
+  menuToggleDarkMode(): void {
+    this.toggleDarkMode();
+  }
+
+  menuOpenSettings(): void {
+    this.closeHeaderMenu();
+    this.openSettings();
+  }
+
+  menuLeaveRoom(): void {
+    this.closeHeaderMenu();
+    this.leaveRoom();
+  }
+
+  menuLogout(): void {
+    this.closeHeaderMenu();
+    this.leaveRoom();
+    this.logout();
   }
 }
