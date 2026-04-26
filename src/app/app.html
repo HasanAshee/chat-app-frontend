@@ -27,23 +27,31 @@
         </button>
       </div>
 
-      @if (auth.isLoggedIn()) {
-        <div class="logged-in-banner">
-          <p>
-            Sesión iniciada como
-            <strong [style.color]="auth.currentUser()?.nameColor">
-              {{ auth.currentUser()?.username }}
-            </strong>
-          </p>
-          <button class="link-btn" (click)="logout()">Cerrar sesión</button>
-        </div>
+        @if (auth.isLoggedIn()) {
+          <div class="logged-in-banner">
+            <p>
+              Sesión iniciada como
+              <strong [style.color]="auth.currentUser()?.nameColor">
+                {{ auth.currentUser()?.username }}
+              </strong>
+            </p>
+            <button class="link-btn" (click)="logout()">Cerrar sesión</button>
+          </div>
 
-        <input
-          [(ngModel)]="room"
-          (keyup.enter)="joinAsAuthenticated()"
-          placeholder="Nombre de la sala...">
-        <button (click)="joinAsAuthenticated()">Unirse</button>
-      } @else {
+          <input
+            [(ngModel)]="room"
+            (keyup.enter)="joinAsAuthenticated()"
+            placeholder="Nombre de la sala...">
+          <button (click)="joinAsAuthenticated()">Unirse</button>
+
+          <button class="create-room-btn" (click)="openCreateRoomModal()">
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <line x1="12" y1="5" x2="12" y2="19"></line>
+              <line x1="5" y1="12" x2="19" y2="12"></line>
+            </svg>
+            Crear sala
+          </button>
+        } @else {
 
         <!-- guest -->
         @if (loginMode === 'guest') {
@@ -92,16 +100,65 @@
         <div class="auth-error">{{ authError }}</div>
       }
 
+      @if (auth.isLoggedIn() && myRooms.length > 0) {
+        <div class="my-rooms">
+          <h4>Mis salas</h4>
+          <ul class="rooms-list">
+            @for (r of myRooms; track r._id) {
+              <li class="room-item my-room-item" (click)="selectRoom(r.name)">
+                <span class="room-name">
+                  @if (r.visibility === 'password') {
+                    <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align: middle; margin-right: 4px;">
+                      <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
+                      <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
+                    </svg>
+                  } @else if (r.visibility === 'invite') {
+                    <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align: middle; margin-right: 4px;">
+                      <path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
+                      <circle cx="8.5" cy="7" r="4"></circle>
+                      <line x1="20" y1="8" x2="20" y2="14"></line>
+                      <line x1="23" y1="11" x2="17" y2="11"></line>
+                    </svg>
+                  } @else {
+                    <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align: middle; margin-right: 4px;">
+                      <circle cx="12" cy="12" r="10"></circle>
+                      <line x1="2" y1="12" x2="22" y2="12"></line>
+                      <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"></path>
+                    </svg>
+                  }
+                  {{ r.name }}
+                </span>
+                <span class="room-meta">
+                  @if (r.isOwner) {
+                    <span class="room-owner-badge">dueño</span>
+                  } @else {
+                    <span class="room-invited-badge">invitado</span>
+                  }
+                </span>
+              </li>
+            }
+          </ul>
+        </div>
+      }
+
       @if (activeRooms.length > 0 && (loginMode === 'guest' || auth.isLoggedIn())) {
         <div class="active-rooms">
           <h4>Salas activas</h4>
           <ul class="rooms-list">
-            @for (r of activeRooms; track r.name) {
-              <li class="room-item" (click)="selectRoom(r.name)">
-                <span class="room-name">{{ r.name }}</span>
-                <span class="room-count">{{ r.userCount }} {{ r.userCount === 1 ? 'usuario' : 'usuarios' }}</span>
-              </li>
-            }
+          @for (r of activeRooms; track r.name) {
+            <li class="room-item" (click)="selectRoom(r.name)">
+              <span class="room-name">
+                @if (r.requiresPassword) {
+                  <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align: middle; margin-right: 4px;">
+                    <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
+                    <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
+                  </svg>
+                }
+                {{ r.name }}
+              </span>
+              <span class="room-count">{{ r.userCount }} {{ r.userCount === 1 ? 'usuario' : 'usuarios' }}</span>
+            </li>
+          }
           </ul>
         </div>
       }
@@ -227,6 +284,18 @@
                     </span>
                     <span>{{ isDarkMode ? 'Modo claro' : 'Modo oscuro' }}</span>
                   </button>
+
+                  @if (canManageCurrentRoom()) {
+                    <button class="header-menu-item" (click)="openManageRoomModal()">
+                      <span class="menu-icon">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                          <circle cx="12" cy="12" r="3"></circle>
+                          <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
+                        </svg>
+                      </span>
+                      <span>Gestionar sala</span>
+                    </button>
+                  }
 
                   <div class="header-menu-divider"></div>
 
@@ -432,7 +501,7 @@
 
     </div>
   }
-
+  <!--color picker-->
   @if (showSettingsModal) {
     <div class="modal-overlay" (click)="closeSettings()">
       <div class="modal-content" (click)="$event.stopPropagation()">
@@ -485,7 +554,7 @@
       </div>
     </div>
   }
-
+  <!--dms-->
   @if (auth.isLoggedIn()) {
     <div class="dm-dock">
       @for (dm of dm.openDms(); track dm.conversationId) {
@@ -662,4 +731,230 @@
       </div>
     </div>
   }
+  <!--private rooms-->
+  @if (showCreateRoomModal) {
+    <div class="modal-overlay" (click)="closeCreateRoomModal()">
+      <div class="modal-content" (click)="$event.stopPropagation()">
+        <div class="modal-header">
+          <h3>Crear sala</h3>
+          <button class="modal-close" (click)="closeCreateRoomModal()" title="Cerrar">×</button>
+        </div>
+
+        <div class="modal-body">
+          <div class="settings-section">
+            <label class="settings-label">Nombre de la sala</label>
+            <input
+              [(ngModel)]="newRoomName"
+              placeholder="Ej: amigos-del-fulbo"
+              class="modal-input"
+              maxlength="32">
+            <div class="modal-hint">2-32 caracteres. Solo letras, números, _ y -</div>
+          </div>
+
+          <div class="settings-section">
+            <label class="settings-label">Tipo de sala</label>
+            <div class="visibility-options">
+              <button
+                class="visibility-option"
+                [class.selected]="newRoomVisibility === 'public'"
+                (click)="newRoomVisibility = 'public'">
+                <div class="visibility-icon">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <circle cx="12" cy="12" r="10"></circle>
+                    <line x1="2" y1="12" x2="22" y2="12"></line>
+                    <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"></path>
+                  </svg>
+                </div>
+                <div class="visibility-text">
+                  <div class="visibility-title">Pública</div>
+                  <div class="visibility-desc">Cualquiera puede entrar</div>
+                </div>
+              </button>
+
+              <button
+                class="visibility-option"
+                [class.selected]="newRoomVisibility === 'password'"
+                (click)="newRoomVisibility = 'password'">
+                <div class="visibility-icon">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
+                    <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
+                  </svg>
+                </div>
+                <div class="visibility-text">
+                  <div class="visibility-title">Con contraseña</div>
+                  <div class="visibility-desc">Hay que saberla para entrar</div>
+                </div>
+              </button>
+
+              <button
+                class="visibility-option"
+                [class.selected]="newRoomVisibility === 'invite'"
+                (click)="newRoomVisibility = 'invite'">
+                <div class="visibility-icon">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
+                    <circle cx="8.5" cy="7" r="4"></circle>
+                    <line x1="20" y1="8" x2="20" y2="14"></line>
+                    <line x1="23" y1="11" x2="17" y2="11"></line>
+                  </svg>
+                </div>
+                <div class="visibility-text">
+                  <div class="visibility-title">Por invitación</div>
+                  <div class="visibility-desc">Solo los invitados</div>
+                </div>
+              </button>
+            </div>
+          </div>
+
+          @if (newRoomVisibility === 'password') {
+            <div class="settings-section">
+              <label class="settings-label">Contraseña</label>
+              <input
+                type="password"
+                [(ngModel)]="newRoomPassword"
+                placeholder="Mínimo 4 caracteres"
+                class="modal-input">
+            </div>
+          }
+
+          @if (newRoomVisibility === 'invite') {
+            <div class="settings-section">
+              <label class="settings-label">Invitar usuarios (opcional)</label>
+              <input
+                [(ngModel)]="newRoomInvited"
+                placeholder="usuario1, usuario2, usuario3"
+                class="modal-input">
+              <div class="modal-hint">Usuarios registrados, separados por comas. Podés invitar más después.</div>
+            </div>
+          }
+
+          @if (createRoomError) {
+            <div class="auth-error">{{ createRoomError }}</div>
+          }
+        </div>
+
+        <div class="modal-footer">
+          <button class="modal-btn secondary" (click)="closeCreateRoomModal()">Cancelar</button>
+          <button class="modal-btn primary" (click)="createRoom()" [disabled]="isCreatingRoom">
+            {{ isCreatingRoom ? 'Creando...' : 'Crear' }}
+          </button>
+        </div>
+      </div>
+    </div>
+  }
+
+  @if (showPasswordPrompt) {
+    <div class="modal-overlay" (click)="cancelPasswordPrompt()">
+      <div class="modal-content password-prompt-modal" (click)="$event.stopPropagation()">
+        <div class="modal-header">
+          <h3>Sala protegida</h3>
+          <button class="modal-close" (click)="cancelPasswordPrompt()" title="Cerrar">×</button>
+        </div>
+
+        <div class="modal-body">
+          <p class="password-prompt-text">
+            La sala <strong>{{ passwordPromptRoom }}</strong> requiere contraseña.
+          </p>
+
+          <input
+            type="password"
+            [(ngModel)]="passwordPromptValue"
+            (keyup.enter)="submitPasswordPrompt()"
+            placeholder="Contraseña"
+            class="modal-input password-prompt-input">
+
+          @if (passwordPromptError) {
+            <div class="auth-error">{{ passwordPromptError }}</div>
+          }
+        </div>
+
+        <div class="modal-footer">
+          <button class="modal-btn secondary" (click)="cancelPasswordPrompt()">Cancelar</button>
+          <button class="modal-btn primary" (click)="submitPasswordPrompt()">Entrar</button>
+        </div>
+      </div>
+    </div>
+  }
+
+  <!--manage modal-->
+  @if (showManageRoomModal) {
+    <div class="modal-overlay" (click)="closeManageRoomModal()">
+      <div class="modal-content manage-room-modal" (click)="$event.stopPropagation()">
+        <div class="modal-header">
+          <h3>Gestionar sala: {{ room }}</h3>
+          <button class="modal-close" (click)="closeManageRoomModal()" title="Cerrar">×</button>
+        </div>
+
+        <div class="modal-body">
+          <div class="settings-section">
+            <label class="settings-label">Invitar usuario</label>
+            <div class="invite-input-row">
+              <input
+                [(ngModel)]="manageRoomInviteInput"
+                (keyup.enter)="inviteToRoom()"
+                placeholder="Username registrado"
+                class="modal-input">
+              <button
+                class="modal-btn primary"
+                (click)="inviteToRoom()"
+                [disabled]="isManagingRoom || !manageRoomInviteInput.trim()">
+                Invitar
+              </button>
+            </div>
+            <div class="modal-hint">El usuario tiene que estar registrado en el chat.</div>
+          </div>
+
+          <div class="settings-section">
+            <label class="settings-label">
+              Invitados ({{ manageRoomInvited.length }})
+            </label>
+
+            @if (manageRoomInvited.length === 0) {
+              <div class="invited-empty">Todavía no invitaste a nadie.</div>
+            } @else {
+              <ul class="invited-list">
+                @for (u of manageRoomInvited; track u) {
+                  <li class="invited-item">
+                    <span class="invited-name">{{ u }}</span>
+                    <button
+                      class="invited-remove"
+                      (click)="uninviteFromRoom(u)"
+                      [disabled]="isManagingRoom"
+                      title="Sacar de la sala">
+                      <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <line x1="18" y1="6" x2="6" y2="18"></line>
+                        <line x1="6" y1="6" x2="18" y2="18"></line>
+                      </svg>
+                    </button>
+                  </li>
+                }
+              </ul>
+            }
+          </div>
+
+          @if (manageRoomError) {
+            <div class="auth-error">{{ manageRoomError }}</div>
+          }
+
+          <div class="settings-section danger-zone">
+            <label class="settings-label danger-label">Danger Zone</label>
+            <button class="modal-btn danger" (click)="deleteCurrentRoom()">
+              <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <polyline points="3 6 5 6 21 6"></polyline>
+                <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+              </svg>
+              Borrar sala
+            </button>
+            <div class="modal-hint">Saca a todos los conectados y borra la sala permanentemente.</div>
+          </div>
+        </div>
+
+        <div class="modal-footer">
+          <button class="modal-btn secondary" (click)="closeManageRoomModal()">Cerrar</button>
+        </div>
+      </div>
+    </div>
+  }
+
 </div>

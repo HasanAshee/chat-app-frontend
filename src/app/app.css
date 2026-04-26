@@ -1932,3 +1932,306 @@ button {
   background: var(--border-color);
   cursor: not-allowed;
 }
+
+/* ============ CREATE ROOM BUTTON ============ */
+.create-room-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  width: 100%;
+  padding: 10px;
+  background: transparent;
+  border: 1px dashed var(--border-color);
+  color: var(--secondary-text-color);
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 0.88rem;
+  font-weight: 500;
+  transition: all 0.15s;
+}
+
+.create-room-btn:hover {
+  border-color: #7c3aed;
+  color: #7c3aed;
+  background: rgba(124, 58, 237, 0.04);
+}
+
+/* ============ MODAL INPUT ============ */
+.modal-input {
+  width: 100%;
+  padding: 9px 12px;
+  font-size: 0.9rem;
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  background: var(--component-bg-color);
+  color: var(--text-color);
+  box-sizing: border-box;
+}
+
+.modal-input:focus {
+  outline: none;
+  border-color: #7c3aed;
+}
+
+.modal-hint {
+  font-size: 0.75rem;
+  color: var(--secondary-text-color);
+  margin-top: 4px;
+}
+
+/* ============ VISIBILITY OPTIONS ============ */
+.visibility-options {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.visibility-option {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 12px;
+  background: transparent;
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  cursor: pointer;
+  text-align: left;
+  color: var(--text-color);
+  transition: all 0.15s;
+  width: 100%;
+}
+
+.visibility-option:hover {
+  background: rgba(0, 0, 0, 0.03);
+}
+
+:host-context(.dark-mode) .visibility-option:hover {
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.visibility-option.selected {
+  border-color: #7c3aed;
+  background: rgba(124, 58, 237, 0.08);
+}
+
+.visibility-icon {
+  width: 36px;
+  height: 36px;
+  border-radius: 8px;
+  background: rgba(124, 58, 237, 0.1);
+  color: #7c3aed;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.visibility-text {
+  flex: 1;
+  min-width: 0;
+}
+
+.visibility-title {
+  font-size: 0.9rem;
+  font-weight: 600;
+  margin-bottom: 2px;
+}
+
+.visibility-desc {
+  font-size: 0.78rem;
+  color: var(--secondary-text-color);
+}
+
+/* ============ PASSWORD PROMPT MODAL ============ */
+.password-prompt-modal {
+  min-width: 320px;
+  max-width: 400px;
+}
+
+.password-prompt-text {
+  margin: 0 0 12px 0;
+  font-size: 0.9rem;
+  color: var(--text-color);
+}
+
+.password-prompt-text strong {
+  color: #7c3aed;
+}
+
+/* ============ MY ROOMS ============ */
+.my-rooms {
+  margin-top: 1.5rem;
+  padding-top: 1rem;
+  border-top: 1px solid var(--border-color);
+}
+
+.my-rooms h4 {
+  margin: 0 0 0.75rem 0;
+  font-size: 0.9rem;
+  opacity: 0.7;
+  font-weight: 500;
+}
+
+.my-room-item {
+  background-color: rgba(124, 58, 237, 0.06);
+}
+
+.my-room-item:hover {
+  background-color: rgba(124, 58, 237, 0.15);
+}
+
+.room-meta {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.room-owner-badge {
+  font-size: 0.7rem;
+  padding: 1px 7px;
+  border-radius: 8px;
+  background: rgba(124, 58, 237, 0.2);
+  color: #7c3aed;
+  font-weight: 600;
+}
+
+.room-invited-badge {
+  font-size: 0.7rem;
+  padding: 1px 7px;
+  border-radius: 8px;
+  background: rgba(156, 163, 175, 0.2);
+  color: #6b7280;
+  font-weight: 500;
+}
+
+:host-context(.dark-mode) .room-owner-badge {
+  background: rgba(167, 139, 250, 0.2);
+  color: #c4b5fd;
+}
+
+:host-context(.dark-mode) .room-invited-badge {
+  background: rgba(156, 163, 175, 0.15);
+  color: #9ca3af;
+}
+
+/* ============ MANAGE ROOM MODAL ============ */
+.manage-room-modal {
+  min-width: 420px;
+  max-width: 500px;
+}
+
+.invite-input-row {
+  display: flex;
+  gap: 8px;
+}
+
+.invite-input-row .modal-input {
+  flex: 1;
+}
+
+.invited-empty {
+  font-size: 0.85rem;
+  color: var(--secondary-text-color);
+  font-style: italic;
+  padding: 12px;
+  text-align: center;
+  background: rgba(0, 0, 0, 0.03);
+  border-radius: 6px;
+}
+
+:host-context(.dark-mode) .invited-empty {
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.invited-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  max-height: 240px;
+  overflow-y: auto;
+}
+
+.invited-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 12px;
+  background: rgba(0, 0, 0, 0.04);
+  border-radius: 6px;
+}
+
+:host-context(.dark-mode) .invited-item {
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.invited-name {
+  font-size: 0.9rem;
+  font-weight: 500;
+}
+
+.invited-remove {
+  width: 24px;
+  height: 24px;
+  border: none;
+  background: transparent;
+  border-radius: 50%;
+  cursor: pointer;
+  color: var(--secondary-text-color);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  transition: all 0.12s;
+}
+
+.invited-remove:hover {
+  background: rgba(239, 68, 68, 0.15);
+  color: #dc2626;
+}
+
+.invited-remove:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.danger-zone {
+  border-top: 1px dashed var(--border-color);
+  padding-top: 16px;
+  margin-top: 8px;
+}
+
+.danger-label {
+  color: #dc2626 !important;
+}
+
+:host-context(.dark-mode) .danger-label {
+  color: #f87171 !important;
+}
+
+.modal-btn.danger {
+  background: transparent;
+  border-color: #dc2626;
+  color: #dc2626;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.modal-btn.danger:hover {
+  background: rgba(239, 68, 68, 0.08);
+}
+
+:host-context(.dark-mode) .modal-btn.danger {
+  border-color: #f87171;
+  color: #f87171;
+}
+
+@media (max-width: 480px) {
+  .manage-room-modal {
+    min-width: 280px;
+  }
+}

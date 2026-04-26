@@ -42,6 +42,7 @@ type LoginMode = 'guest' | 'login' | 'register';
   templateUrl: './app.html',
   styleUrls: ['./app.css']
 })
+
 export class AppComponent implements OnInit, AfterViewChecked, OnDestroy {
 
   @ViewChild('messageListContainer') private messageListContainer!: ElementRef;
@@ -55,7 +56,7 @@ export class AppComponent implements OnInit, AfterViewChecked, OnDestroy {
   typingUser = '';
   usersInRoom: RoomUser[] = [];
   private typingTimeout: any;
-  activeRooms: { name: string; userCount: number }[] = [];
+  activeRooms: { name: string; userCount: number; visibility?: string; requiresPassword?: boolean }[] = [];
   private roomsInterval: any;
 
   // Auth UI state
@@ -75,6 +76,12 @@ export class AppComponent implements OnInit, AfterViewChecked, OnDestroy {
   isSearching = false;
   private searchDebounceTimeout: any;
 
+  showManageRoomModal = false;
+  manageRoomInvited: string[] = [];
+  manageRoomInviteInput = '';
+  manageRoomError = '';
+  isManagingRoom = false;
+
   dmInputs: { [conversationId: string]: string } = {};
   private dmTypingTimeouts: { [conversationId: string]: any } = {};
 
@@ -86,6 +93,16 @@ export class AppComponent implements OnInit, AfterViewChecked, OnDestroy {
   showDmList = false;
   dmStartUsername = '';
   dmStartError = '';
+
+  myRooms: Array<{
+    _id: string;
+    name: string;
+    visibility: 'public' | 'password' | 'invite';
+    ownerUsername: string;
+    isOwner: boolean;
+    invitedUsernames?: string[];
+    createdAt: string;
+  }> = [];
 
   private unreadMentions = 0;
   private originalTitle = '';
@@ -112,6 +129,21 @@ export class AppComponent implements OnInit, AfterViewChecked, OnDestroy {
     '#d946ef', '#4ade80', '#f97316', '#3b82f6',
     '#ec4899', '#14b8a6', '#eab308', '#ef4444'
   ];
+
+  showCreateRoomModal = false;
+  newRoomName = '';
+  newRoomVisibility: 'public' | 'password' | 'invite' = 'public';
+  newRoomPassword = '';
+  newRoomInvited = '';
+  isCreatingRoom = false;
+  createRoomError = '';
+
+  showPasswordPrompt = false;
+  passwordPromptRoom = '';
+  passwordPromptValue = '';
+  passwordPromptError = '';
+
+  currentRoomMeta: { visibility: string; ownerUsername: string | null; isOwner: boolean } | null = null;
 
   constructor(
     private socket: Socket,
@@ -226,6 +258,13 @@ export class AppComponent implements OnInit, AfterViewChecked, OnDestroy {
       this.cdr.detectChanges();
     });
 
+    (this.socket as any).ioSocket?.on?.('connect', () => {
+      console.log('[socket] real connect event, isLoggedIn:', this.auth.isLoggedIn());
+      if (this.auth.isLoggedIn()) {
+        this.registerPersonalChannel();
+      }
+    });
+
     this.socket.fromEvent('message reaction updated').subscribe((data: any) => {
       const { messageId, reactions } = data;
       const message = this.messages.find(m => m._id === messageId);
@@ -236,15 +275,29 @@ export class AppComponent implements OnInit, AfterViewChecked, OnDestroy {
     });
 
     this.socket.fromEvent('join error').subscribe((data: any) => {
-      this.authError = data?.message || 'Error al unirse a la sala';
-      this.isLoggedIn = false;
-      this.cdr.detectChanges();
+      const message = data?.message || 'Error al unirse a la sala';
+
+      if (this.showPasswordPrompt) {
+        this.passwordPromptError = message;
+        this.cdr.detectChanges();
+      } else {
+        this.authError = message;
+        this.isLoggedIn = false;
+        this.cdr.detectChanges();
+      }
     });
 
     this.socket.fromEvent('join success').subscribe((data: any) => {
       this.username = data.username;
       this.isLoggedIn = true;
       this.authError = '';
+      this.showPasswordPrompt = false;
+      this.passwordPromptRoom = '';
+      this.passwordPromptValue = '';
+      this.passwordPromptError = '';
+
+      this.currentRoomMeta = data.roomMeta || null;
+
       this.cdr.detectChanges();
     });
 
@@ -260,6 +313,7 @@ export class AppComponent implements OnInit, AfterViewChecked, OnDestroy {
     if (this.auth.isLoggedIn()) {
       this.registerPersonalChannel();
       this.dm.loadConversations().subscribe();
+      this.loadMyRooms();
     }
 
     this.socket.fromEvent('dm message').subscribe((data: any) => {
@@ -291,6 +345,29 @@ export class AppComponent implements OnInit, AfterViewChecked, OnDestroy {
 
     this.socket.fromEvent('dm read').subscribe((data: any) => {
       console.log('DM read by:', data.readBy, 'in conversation:', data.conversationId);
+    });
+
+    this.socket.fromEvent('join password required').subscribe((data: any) => {
+      this.passwordPromptRoom = data.room;
+      this.passwordPromptValue = '';
+      this.passwordPromptError = '';
+      this.showPasswordPrompt = true;
+      this.cdr.detectChanges();
+
+      setTimeout(() => {
+        const input = document.querySelector<HTMLInputElement>('.password-prompt-input');
+        input?.focus();
+      }, 50);
+    });
+
+    this.socket.fromEvent('kicked from room').subscribe((data: any) => {
+      alert(`Fuiste expulsado de la sala: ${data.reason || ''}`);
+      this.leaveRoom();
+    });
+
+    this.socket.fromEvent('room deleted').subscribe((data: any) => {
+      alert(`La sala "${data.room}" fue borrada por el dueño.`);
+      this.leaveRoom();
     });
   }
 
@@ -332,6 +409,7 @@ export class AppComponent implements OnInit, AfterViewChecked, OnDestroy {
         this.password = '';
         this.registerPersonalChannel();
         this.dm.loadConversations().subscribe();
+        this.loadMyRooms();
       },
       error: (err) => {
         this.isAuthLoading = false;
@@ -353,6 +431,7 @@ export class AppComponent implements OnInit, AfterViewChecked, OnDestroy {
         this.password = '';
         this.registerPersonalChannel();
         this.dm.loadConversations().subscribe();
+        this.loadMyRooms();
       },
       error: (err) => {
         this.isAuthLoading = false;
@@ -387,6 +466,7 @@ export class AppComponent implements OnInit, AfterViewChecked, OnDestroy {
   logout(): void {
     this.auth.logout();
     this.dm.reset();
+    this.myRooms = [];
     this.username = '';
     this.password = '';
   }
@@ -405,6 +485,7 @@ export class AppComponent implements OnInit, AfterViewChecked, OnDestroy {
     }
     this.cdr.detectChanges();
     this.loadActiveRooms();
+    this.currentRoomMeta = null;
   }
 
   sendMessage() {
@@ -812,6 +893,7 @@ export class AppComponent implements OnInit, AfterViewChecked, OnDestroy {
       }
     });
   }
+
   toggleHeaderMenu(): void {
     this.showHeaderMenu = !this.showHeaderMenu;
   }
@@ -959,10 +1041,9 @@ export class AppComponent implements OnInit, AfterViewChecked, OnDestroy {
   private registerPersonalChannel(): void {
     const token = this.auth.getToken();
     if (!token) return;
-    setTimeout(() => {
-      this.socket.emit('register user channel', { token });
-      console.log('[DM] register user channel sent');
-    }, 200);
+    const connected = (this.socket as any).ioSocket?.connected;
+    console.log('[DM] register user channel - socket connected?', connected);
+    this.socket.emit('register user channel', { token });
   }
 
   toggleDmList(): void {
@@ -1130,6 +1211,245 @@ export class AppComponent implements OnInit, AfterViewChecked, OnDestroy {
         const errMsg = this.auth.getErrorMessage(err);
         console.warn('No se pudo abrir DM:', errMsg);
         alert(`No se pudo iniciar DM con ${msg.username}: ${errMsg}`);
+      }
+    });
+  }
+
+  openCreateRoomModal(): void {
+    this.showCreateRoomModal = true;
+    this.newRoomName = '';
+    this.newRoomVisibility = 'public';
+    this.newRoomPassword = '';
+    this.newRoomInvited = '';
+    this.createRoomError = '';
+  }
+
+  closeCreateRoomModal(): void {
+    this.showCreateRoomModal = false;
+    this.createRoomError = '';
+  }
+
+  createRoom(): void {
+    if (!this.auth.isLoggedIn()) {
+      this.createRoomError = 'Necesitás estar logueado para crear salas';
+      return;
+    }
+
+    const name = this.newRoomName.trim();
+    if (!name) {
+      this.createRoomError = 'Ponele nombre a la sala';
+      return;
+    }
+    if (name.length < 2 || name.length > 32) {
+      this.createRoomError = 'El nombre debe tener entre 2 y 32 caracteres';
+      return;
+    }
+    if (!/^[\w-]+$/.test(name)) {
+      this.createRoomError = 'Solo letras, números, _ y -';
+      return;
+    }
+    if (this.newRoomVisibility === 'password' && this.newRoomPassword.length < 4) {
+      this.createRoomError = 'La contraseña debe tener al menos 4 caracteres';
+      return;
+    }
+
+    const body: any = {
+      name,
+      visibility: this.newRoomVisibility
+    };
+
+    if (this.newRoomVisibility === 'password') {
+      body.password = this.newRoomPassword;
+    }
+
+    if (this.newRoomVisibility === 'invite') {
+      const list = this.newRoomInvited
+        .split(',')
+        .map(u => u.trim())
+        .filter(u => u.length > 0);
+      body.invitedUsernames = list;
+    }
+
+    this.isCreatingRoom = true;
+    this.createRoomError = '';
+
+    const token = this.auth.getToken();
+    this.http.post<any>(
+      `${environment.apiUrl}/rooms`,
+      body,
+      { headers: { Authorization: `Bearer ${token}` } }
+    ).subscribe({
+      next: (room) => {
+        this.isCreatingRoom = false;
+        this.closeCreateRoomModal();
+        this.room = room.name;
+        this.loadMyRooms();
+      },
+      error: (err) => {
+        this.isCreatingRoom = false;
+        this.createRoomError = this.auth.getErrorMessage(err);
+      }
+    });
+  }
+
+  submitPasswordPrompt(): void {
+    if (!this.passwordPromptValue) {
+      this.passwordPromptError = 'Ingresá la contraseña';
+      return;
+    }
+
+    this.passwordPromptError = '';
+
+    if (this.auth.isLoggedIn()) {
+      const token = this.auth.getToken();
+      this.socket.emit('join room', {
+        room: this.passwordPromptRoom,
+        token,
+        password: this.passwordPromptValue
+      });
+    } else {
+      this.socket.emit('join room', {
+        room: this.passwordPromptRoom,
+        username: this.username,
+        password: this.passwordPromptValue
+      });
+    }
+  }
+
+  cancelPasswordPrompt(): void {
+      this.showPasswordPrompt = false;
+      this.passwordPromptRoom = '';
+      this.passwordPromptValue = '';
+      this.passwordPromptError = '';
+  }
+
+  loadMyRooms(): void {
+    if (!this.auth.isLoggedIn()) {
+      this.myRooms = [];
+      return;
+    }
+    const token = this.auth.getToken();
+    this.http.get<any[]>(
+      `${environment.apiUrl}/rooms/mine`,
+      { headers: { Authorization: `Bearer ${token}` } }
+    ).subscribe({
+      next: (rooms) => {
+        this.myRooms = rooms;
+        this.cdr.detectChanges();
+      },
+      error: (err) => {
+        console.error('Error cargando mis salas:', err);
+      }
+    });
+  }
+
+  getRoomIcon(visibility: string): string {
+    if (visibility === 'password') return 'lock';
+    if (visibility === 'invite') return 'invite';
+    return 'public';
+  }
+
+  canManageCurrentRoom(): boolean {
+  return this.isLoggedIn && this.currentRoomMeta?.isOwner === true;
+}
+
+  openManageRoomModal(): void {
+    if (!this.canManageCurrentRoom()) return;
+
+    this.closeHeaderMenu();
+    this.showManageRoomModal = true;
+    this.manageRoomError = '';
+    this.manageRoomInviteInput = '';
+    this.loadRoomDetails();
+  }
+
+  closeManageRoomModal(): void {
+    this.showManageRoomModal = false;
+    this.manageRoomError = '';
+    this.manageRoomInviteInput = '';
+  }
+
+  private loadRoomDetails(): void {
+    const token = this.auth.getToken();
+    this.http.get<any>(
+      `${environment.apiUrl}/rooms/${encodeURIComponent(this.room)}`,
+      { headers: { Authorization: `Bearer ${token}` } }
+    ).subscribe({
+      next: (data) => {
+        this.manageRoomInvited = data.invitedUsernames || [];
+        this.cdr.detectChanges();
+      },
+      error: (err) => {
+        this.manageRoomError = this.auth.getErrorMessage(err);
+      }
+    });
+  }
+
+  inviteToRoom(): void {
+    const username = this.manageRoomInviteInput.trim();
+    if (!username) return;
+
+    this.isManagingRoom = true;
+    this.manageRoomError = '';
+
+    const token = this.auth.getToken();
+    this.http.post<{ invitedUsernames: string[] }>(
+      `${environment.apiUrl}/rooms/${encodeURIComponent(this.room)}/invite`,
+      { username },
+      { headers: { Authorization: `Bearer ${token}` } }
+    ).subscribe({
+      next: (res) => {
+        this.isManagingRoom = false;
+        this.manageRoomInvited = res.invitedUsernames;
+        this.manageRoomInviteInput = '';
+        this.cdr.detectChanges();
+      },
+      error: (err) => {
+        this.isManagingRoom = false;
+        this.manageRoomError = this.auth.getErrorMessage(err);
+      }
+    });
+  }
+
+  uninviteFromRoom(username: string): void {
+    if (!confirm(`¿Sacar a ${username} de los invitados?`)) return;
+
+    this.isManagingRoom = true;
+    this.manageRoomError = '';
+
+    const token = this.auth.getToken();
+    this.http.post<{ invitedUsernames: string[] }>(
+      `${environment.apiUrl}/rooms/${encodeURIComponent(this.room)}/uninvite`,
+      { username },
+      { headers: { Authorization: `Bearer ${token}` } }
+    ).subscribe({
+      next: (res) => {
+        this.isManagingRoom = false;
+        this.manageRoomInvited = res.invitedUsernames;
+        this.cdr.detectChanges();
+      },
+      error: (err) => {
+        this.isManagingRoom = false;
+        this.manageRoomError = this.auth.getErrorMessage(err);
+      }
+    });
+  }
+
+  deleteCurrentRoom(): void {
+    if (!confirm(`¿Borrar la sala "${this.room}"? Esta acción no se puede deshacer y va a echar a todos los que estén adentro.`)) return;
+
+    const token = this.auth.getToken();
+    this.http.delete(
+      `${environment.apiUrl}/rooms/${encodeURIComponent(this.room)}`,
+      { headers: { Authorization: `Bearer ${token}` } }
+    ).subscribe({
+      next: () => {
+        this.closeManageRoomModal();
+        this.leaveRoom();
+        this.loadMyRooms();
+      },
+      error: (err) => {
+        this.manageRoomError = this.auth.getErrorMessage(err);
       }
     });
   }
