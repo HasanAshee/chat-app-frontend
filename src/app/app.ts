@@ -82,7 +82,7 @@ export class AppComponent implements OnInit, AfterViewChecked, OnDestroy {
   manageRoomError = '';
   isManagingRoom = false;
 
-  dmInputs: { [conversationId: string]: string } = {};
+  dmInputs: { [conversationId: string]: string | undefined } = {};
   private dmTypingTimeouts: { [conversationId: string]: any } = {};
 
   mentionMatches: string[] = [];
