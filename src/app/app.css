@@ -876,6 +876,14 @@ button {
   background: #2563eb;
 }
 
+:host-context(.dark-mode) .modal-btn.primary {
+  background: #7c3aed;
+}
+
+:host-context(.dark-mode) .modal-btn.primary:hover:not(:disabled) {
+  background: #6d28d9;
+}
+
 .modal-btn.primary:disabled {
   opacity: 0.6;
   cursor: not-allowed;
@@ -2562,4 +2570,144 @@ button {
   .profile-modal {
     min-width: 280px;
   }
+}
+
+/* ============ DELETE MODAL ============ */
+.delete-modal {
+  min-width: 360px;
+  max-width: 420px;
+}
+
+.delete-modal-text {
+  margin: 0 0 16px 0;
+  font-size: 0.9rem;
+  color: var(--text-color);
+}
+
+.delete-modal-options {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.delete-option {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px;
+  background: transparent;
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  cursor: pointer;
+  text-align: left;
+  color: var(--text-color);
+  transition: all 0.15s;
+  width: 100%;
+}
+
+.delete-option:hover {
+  background: rgba(0, 0, 0, 0.04);
+  border-color: var(--secondary-text-color);
+}
+
+:host-context(.dark-mode) .delete-option:hover {
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.delete-option.danger:hover {
+  background: rgba(239, 68, 68, 0.06);
+  border-color: #ef4444;
+}
+
+.delete-option-icon {
+  width: 40px;
+  height: 40px;
+  border-radius: 8px;
+  background: rgba(124, 58, 237, 0.1);
+  color: #7c3aed;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.delete-option.danger .delete-option-icon {
+  background: rgba(239, 68, 68, 0.1);
+  color: #ef4444;
+}
+
+.delete-option-content {
+  flex: 1;
+}
+
+.delete-option-title {
+  font-size: 0.9rem;
+  font-weight: 600;
+  margin-bottom: 2px;
+}
+
+.delete-option-desc {
+  font-size: 0.78rem;
+  color: var(--secondary-text-color);
+}
+
+.message-deleted-placeholder {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.9rem;
+  color: var(--secondary-text-color);
+  font-style: italic;
+  opacity: 0.85;
+}
+
+.message-deleted-placeholder svg {
+  flex-shrink: 0;
+}
+
+.message-item.outgoing .message-deleted-placeholder {
+  color: rgba(255, 255, 255, 0.85);
+}
+
+.dm-message-item.outgoing .message-deleted-placeholder {
+  color: rgba(255, 255, 255, 0.85);
+}
+
+/* ============ DM DELETE BUTTON ============ */
+.dm-message-delete-btn {
+  position: absolute;
+  top: 4px;
+  right: -22px;
+  width: 20px;
+  height: 20px;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  color: var(--secondary-text-color);
+  opacity: 0;
+  transition: opacity 0.15s;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+}
+
+.dm-message-item:hover .dm-message-delete-btn {
+  opacity: 0.7;
+}
+
+.dm-message-delete-btn:hover {
+  opacity: 1;
+  color: #ef4444;
+  background: rgba(239, 68, 68, 0.1);
+}
+
+.dm-message-item.outgoing .dm-message-delete-btn {
+  right: auto;
+  left: -22px;
+}
+
+.dm-message-item {
+  position: relative;
 }

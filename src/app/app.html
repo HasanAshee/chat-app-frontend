@@ -369,7 +369,17 @@
                 </div>
               }
 
-              <div class="message-text" [innerHTML]="renderMessage(msg.text)"></div>
+              @if (msg.deletedForEveryone) {
+                <div class="message-deleted-placeholder">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <circle cx="12" cy="12" r="10"></circle>
+                    <line x1="4.93" y1="4.93" x2="19.07" y2="19.07"></line>
+                  </svg>
+                  <em>Este mensaje fue eliminado</em>
+                </div>
+              } @else {
+                <div class="message-text" [innerHTML]="renderMessage(msg.text)"></div>
+              }
               @if(msg.type === 'message' && msg.createdAt) {
                 <span class="message-timestamp">
                   {{ msg.createdAt | date:'shortTime' }}
@@ -423,6 +433,14 @@
                       title="Responder en privado">
                       <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                         <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
+                      </svg>
+                    </button>
+                  }
+                  @if (canDeleteRoomMessage(msg)) {
+                    <button class="msg-action-btn" (click)="openDeleteModalForRoomMessage(msg)" title="Borrar">
+                      <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <polyline points="3 6 5 6 21 6"></polyline>
+                        <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
                       </svg>
                     </button>
                   }
@@ -700,11 +718,35 @@
                         {{ msg.from }}
                       </div>
                     }
-                    <div class="dm-message-text" [innerHTML]="renderMessage(msg.text)"></div>
+
+                    @if (msg.deletedForEveryone) {
+                      <div class="message-deleted-placeholder">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                          <circle cx="12" cy="12" r="10"></circle>
+                          <line x1="4.93" y1="4.93" x2="19.07" y2="19.07"></line>
+                        </svg>
+                        <em>Este mensaje fue eliminado</em>
+                      </div>
+                    } @else {
+                      <div class="dm-message-text" [innerHTML]="renderMessage(msg.text)"></div>
+                    }
+
                     @if (msg.createdAt) {
                       <span class="dm-message-time">
                         {{ msg.createdAt | date:'shortTime' }}
                       </span>
+                    }
+
+                    @if (!msg.deletedForEveryone) {
+                      <button
+                        class="dm-message-delete-btn"
+                        (click)="openDeleteModalForDmMessage(msg, dm.conversationId)"
+                        title="Borrar">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                          <polyline points="3 6 5 6 21 6"></polyline>
+                          <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+                        </svg>
+                      </button>
                     }
                   </li>
                 }
@@ -1144,6 +1186,58 @@
           }
 
         }
+      </div>
+    </div>
+  }
+
+  <!--delete modal-->
+  @if (showDeleteModal) {
+    <div class="modal-overlay" (click)="closeDeleteModal()">
+      <div class="modal-content delete-modal" (click)="$event.stopPropagation()">
+        <div class="modal-header">
+          <h3>Borrar mensaje</h3>
+          <button class="modal-close" (click)="closeDeleteModal()" title="Cerrar">×</button>
+        </div>
+
+        <div class="modal-body">
+          <p class="delete-modal-text">
+            ¿Cómo querés borrar este mensaje?
+          </p>
+
+          <div class="delete-modal-options">
+            <button class="delete-option" (click)="confirmDelete('me')">
+              <div class="delete-option-icon">
+                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"></path>
+                  <line x1="1" y1="1" x2="23" y2="23"></line>
+                </svg>
+              </div>
+              <div class="delete-option-content">
+                <div class="delete-option-title">Borrar para mí</div>
+                <div class="delete-option-desc">Solo desaparece de tu vista</div>
+              </div>
+            </button>
+
+            @if (deleteModalCanForEveryone) {
+              <button class="delete-option danger" (click)="confirmDelete('everyone')">
+                <div class="delete-option-icon">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <polyline points="3 6 5 6 21 6"></polyline>
+                    <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+                  </svg>
+                </div>
+                <div class="delete-option-content">
+                  <div class="delete-option-title">Borrar para todos</div>
+                  <div class="delete-option-desc">Todos van a ver "Mensaje eliminado"</div>
+                </div>
+              </button>
+            }
+          </div>
+        </div>
+
+        <div class="modal-footer">
+          <button class="modal-btn secondary" (click)="closeDeleteModal()">Cancelar</button>
+        </div>
       </div>
     </div>
   }

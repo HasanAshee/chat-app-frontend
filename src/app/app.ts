@@ -20,6 +20,7 @@ interface Message {
   reactions?: { [emoji: string]: string[] };
   replyTo?: string | null;
   replyToSnapshot?: ReplySnapshot | null;
+  deletedForEveryone?: boolean;
 }
 
 interface ReplySnapshot {
@@ -92,6 +93,12 @@ export class AppComponent implements OnInit, AfterViewChecked, OnDestroy {
   showMentionPopup = false;
   selectedMentionIndex = 0;
   private mentionStartPos = -1;
+
+  showDeleteModal = false;
+  deleteModalMessage: Message | DmMessage | null = null;
+  deleteModalContext: 'room' | 'dm' = 'room';
+  deleteModalCanForEveryone = false;
+  deleteModalConversationId: string | null = null;
 
   showDmList = false;
   dmStartUsername = '';
@@ -380,6 +387,36 @@ export class AppComponent implements OnInit, AfterViewChecked, OnDestroy {
       alert(`La sala "${data.room}" fue borrada por el dueño.`);
       this.leaveRoom();
     });
+
+    this.socket.fromEvent('message deleted for me').subscribe((data: any) => {
+      this.messages = this.messages.filter(m => m._id !== data.messageId);
+      this.cdr.detectChanges();
+    });
+
+    this.socket.fromEvent('message deleted for everyone').subscribe((data: any) => {
+      const msg = this.messages.find(m => m._id === data.messageId);
+      if (msg) {
+        msg.deletedForEveryone = true;
+        msg.text = '';
+        msg.reactions = {};
+        this.cdr.detectChanges();
+      }
+    });
+
+    this.socket.fromEvent('dm deleted for me').subscribe((data: any) => {
+      this.dm.removeMessageFromDm(data.conversationId, data.messageId);
+      this.cdr.detectChanges();
+    });
+
+    this.socket.fromEvent('dm deleted for everyone').subscribe((data: any) => {
+      this.dm.markDmMessageAsDeleted(data.conversationId, data.messageId);
+      this.cdr.detectChanges();
+    });
+
+    this.socket.fromEvent('delete error').subscribe((data: any) => {
+      alert(data?.message || 'No se pudo borrar el mensaje');
+    });
+
   }
 
   ngOnDestroy(): void {
@@ -1618,6 +1655,82 @@ export class AppComponent implements OnInit, AfterViewChecked, OnDestroy {
     const d = new Date(iso);
     const months = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic'];
     return `${months[d.getMonth()]} ${d.getFullYear()}`;
+  }
+
+  canDeleteRoomMessage(msg: Message): boolean {
+    if (!msg._id || msg.type !== 'message') return false;
+    if (msg.deletedForEveryone) return false;
+    return true;
+  }
+
+  openDeleteModalForRoomMessage(msg: Message): void {
+    if (!msg._id) return;
+    this.deleteModalMessage = msg;
+    this.deleteModalContext = 'room';
+    this.deleteModalConversationId = null;
+
+    const isOwn = msg.username === this.username;
+    const isRoomOwner = this.currentRoomMeta?.isOwner === true;
+    const isWithin24h = this.isWithinDeleteWindow(msg.createdAt);
+
+    this.deleteModalCanForEveryone = isRoomOwner || (isOwn && isWithin24h);
+
+    this.showDeleteModal = true;
+  }
+
+  openDeleteModalForDmMessage(msg: DmMessage, conversationId: string): void {
+    this.deleteModalMessage = msg;
+    this.deleteModalContext = 'dm';
+    this.deleteModalConversationId = conversationId;
+
+    const isOwn = msg.from === this.username;
+    const isWithin24h = this.isWithinDeleteWindow(msg.createdAt);
+    this.deleteModalCanForEveryone = isOwn && isWithin24h;
+
+    this.showDeleteModal = true;
+  }
+
+  closeDeleteModal(): void {
+    this.showDeleteModal = false;
+    this.deleteModalMessage = null;
+    this.deleteModalContext = 'room';
+    this.deleteModalConversationId = null;
+    this.deleteModalCanForEveryone = false;
+  }
+
+  confirmDelete(mode: 'me' | 'everyone'): void {
+    const msg = this.deleteModalMessage;
+    if (!msg) return;
+
+    const token = this.auth.getToken();
+
+    if (this.deleteModalContext === 'room') {
+      const roomMsg = msg as Message;
+      if (!roomMsg._id) return;
+      this.socket.emit('delete message', {
+        messageId: roomMsg._id,
+        mode,
+        room: this.room,
+        token
+      });
+    } else {
+      const dmMsg = msg as DmMessage;
+      if (!this.deleteModalConversationId) return;
+      this.socket.emit('dm delete', {
+        messageId: dmMsg._id,
+        conversationId: this.deleteModalConversationId,
+        mode,
+        token
+      });
+    }
+
+    this.closeDeleteModal();
+  }
+
+  private isWithinDeleteWindow(createdAt: Date | string | undefined): boolean {
+    if (!createdAt) return false;
+    const ageMs = Date.now() - new Date(createdAt).getTime();
+    return ageMs <= 24 * 60 * 60 * 1000;
   }
 
 }

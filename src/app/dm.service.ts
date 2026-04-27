@@ -28,6 +28,7 @@ export interface DmMessage {
     nameColor: string;
     text: string;
   } | null;
+  deletedForEveryone?: boolean;
 }
 
 export interface OpenDm {
@@ -192,4 +193,26 @@ export class DmService {
     this._conversations.set([]);
     this._openDms.set([]);
   }
+
+  removeMessageFromDm(conversationId: string, messageId: string): void {
+    this._openDms.set(this._openDms().map(d => {
+      if (d.conversationId !== conversationId) return d;
+      return { ...d, messages: d.messages.filter(m => m._id !== messageId) };
+    }));
+  }
+
+  markDmMessageAsDeleted(conversationId: string, messageId: string): void {
+    this._openDms.set(this._openDms().map(d => {
+      if (d.conversationId !== conversationId) return d;
+      return {
+        ...d,
+        messages: d.messages.map(m =>
+          m._id === messageId
+            ? { ...m, deletedForEveryone: true, text: '', reactions: {} }
+            : m
+        )
+      };
+    }));
+}
+
 }
