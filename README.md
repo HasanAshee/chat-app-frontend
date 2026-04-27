@@ -1,4 +1,4 @@
-# Real-Time Chat App
+<img width="1224" height="941" alt="imagen" src="https://github.com/user-attachments/assets/4004a1f5-342b-4040-bfbc-ba8606cfefe8" /># Real-Time Chat App
 
 A full-stack chat application with public rooms, private rooms, direct messages, user profiles, and rich messaging features. Built with Angular and a Node.js backend with Socket.io for real-time communication.
 
@@ -117,6 +117,7 @@ The backend repository is at [chat-app-backend](https://github.com/HasanAshee/ch
 ## Screenshots
 
 <img width="422" height="397" alt="Captura de pantalla 2026-04-27 112800" src="https://github.com/user-attachments/assets/52688f59-fa1d-4f86-9ad7-0655f8d2ef6f" />
+<img width="1224" height="941" alt="imagen" src="https://github.com/user-attachments/assets/3772149f-445b-4438-aad8-d937608d48c7" />
 <img width="737" height="708" alt="Captura de pantalla 2026-04-27 112657" src="https://github.com/user-attachments/assets/bfcee175-0c96-4608-b388-510504120e2c" />
 
 
