@@ -2235,3 +2235,331 @@ button {
     min-width: 280px;
   }
 }
+
+/* ============ DATE SEPARATOR ============ */
+.date-separator {
+  align-self: center;
+  margin: 12px 0 8px 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  list-style: none;
+}
+
+.date-separator span {
+  background: rgba(0, 0, 0, 0.06);
+  color: var(--secondary-text-color);
+  padding: 4px 12px;
+  border-radius: 12px;
+  font-size: 0.75rem;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+:host-context(.dark-mode) .date-separator span {
+  background: rgba(255, 255, 255, 0.08);
+}
+
+/* ============ MARKDOWN CHEATSHEET ============ */
+.cheatsheet-btn {
+  background: transparent;
+  border: 1px solid var(--border-color);
+  border-radius: 50%;
+  width: 36px;
+  height: 36px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  color: var(--secondary-text-color);
+  flex-shrink: 0;
+  transition: all 0.15s;
+}
+
+.cheatsheet-btn:hover {
+  border-color: #7c3aed;
+  color: #7c3aed;
+  background: rgba(124, 58, 237, 0.05);
+}
+
+.cheatsheet-backdrop {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 99;
+  background: transparent;
+}
+
+.cheatsheet-popup {
+  position: absolute;
+  bottom: calc(100% + 8px);
+  right: 50px;
+  background: var(--component-bg-color);
+  border: 1px solid var(--border-color);
+  border-radius: 10px;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.15);
+  padding: 12px;
+  z-index: 100;
+  width: 320px;
+  max-width: calc(100vw - 32px);
+  max-height: 60vh;
+  overflow-y: auto;
+  animation: menuFadeIn 0.12s ease-out;
+}
+
+:host-context(.dark-mode) .cheatsheet-popup {
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.4);
+}
+
+.cheatsheet-section + .cheatsheet-section {
+  margin-top: 12px;
+  padding-top: 10px;
+  border-top: 1px solid var(--border-color);
+}
+
+.cheatsheet-title {
+  font-size: 0.7rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--secondary-text-color);
+  margin-bottom: 8px;
+}
+
+.cheatsheet-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 4px 0;
+  font-size: 0.82rem;
+}
+
+.cheatsheet-row code {
+  background: rgba(0, 0, 0, 0.06);
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+  font-size: 0.78rem;
+  color: var(--text-color);
+  white-space: nowrap;
+}
+
+:host-context(.dark-mode) .cheatsheet-row code {
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.cheatsheet-row span {
+  flex: 1;
+  text-align: right;
+  color: var(--secondary-text-color);
+  font-size: 0.78rem;
+}
+
+@media (max-width: 480px) {
+  .cheatsheet-popup {
+    right: 8px;
+    left: 8px;
+    width: auto;
+  }
+}
+
+/* ============ PROFILE MODAL ============ */
+.profile-modal {
+  min-width: 360px;
+  max-width: 420px;
+  position: relative;
+}
+
+.profile-loading {
+  padding: 40px 20px;
+  text-align: center;
+  color: var(--secondary-text-color);
+  font-size: 0.9rem;
+}
+
+.profile-close {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  z-index: 2;
+  background: rgba(0, 0, 0, 0.2);
+  color: white;
+  border-radius: 50%;
+}
+
+.profile-close:hover {
+  background: rgba(0, 0, 0, 0.4);
+  color: white;
+}
+
+.profile-header {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 32px 20px 20px 20px;
+  border-bottom: 1px solid var(--border-color);
+  text-align: center;
+}
+
+.profile-avatar {
+  width: 72px;
+  height: 72px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: white;
+  font-size: 1.6rem;
+  font-weight: 700;
+  margin-bottom: 12px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+}
+
+.profile-username {
+  font-size: 1.25rem;
+  font-weight: 700;
+}
+
+.profile-stats {
+  display: flex;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.profile-stat {
+  flex: 1;
+  background: rgba(0, 0, 0, 0.04);
+  border-radius: 8px;
+  padding: 10px 12px;
+  text-align: center;
+}
+
+:host-context(.dark-mode) .profile-stat {
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.profile-stat-label {
+  font-size: 0.7rem;
+  color: var(--secondary-text-color);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-bottom: 4px;
+  font-weight: 600;
+}
+
+.profile-stat-value {
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--text-color);
+}
+
+.profile-bio-section {
+  margin-bottom: 8px;
+}
+
+.profile-bio-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+}
+
+.profile-bio-edit {
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  padding: 4px;
+  border-radius: 4px;
+  color: var(--secondary-text-color);
+  display: flex;
+  align-items: center;
+}
+
+.profile-bio-edit:hover {
+  color: #7c3aed;
+  background: rgba(124, 58, 237, 0.08);
+}
+
+.profile-bio-text {
+  margin: 0;
+  font-size: 0.9rem;
+  line-height: 1.5;
+  color: var(--text-color);
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.profile-bio-empty {
+  margin: 0;
+  font-size: 0.85rem;
+  color: var(--secondary-text-color);
+  font-style: italic;
+}
+
+.profile-bio-input {
+  width: 100%;
+  padding: 9px 12px;
+  font-size: 0.9rem;
+  font-family: inherit;
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  background: var(--component-bg-color);
+  color: var(--text-color);
+  resize: vertical;
+  min-height: 70px;
+  box-sizing: border-box;
+}
+
+.profile-bio-input:focus {
+  outline: none;
+  border-color: #7c3aed;
+}
+
+.profile-bio-counter {
+  font-size: 0.75rem;
+  color: var(--secondary-text-color);
+  text-align: right;
+  margin-top: 4px;
+}
+
+.profile-bio-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.profile-dm-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.user-list-clickable {
+  cursor: pointer;
+  transition: opacity 0.15s;
+}
+
+.user-list-clickable:hover {
+  opacity: 0.75;
+}
+
+.message-author-clickable {
+  cursor: pointer;
+}
+
+.message-author-clickable:hover {
+  text-decoration: underline;
+}
+
+@media (max-width: 480px) {
+  .profile-modal {
+    min-width: 280px;
+  }
+}

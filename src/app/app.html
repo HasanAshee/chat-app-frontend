@@ -330,7 +330,12 @@
         </div>
 
         <ul class="message-list" #messageListContainer>
-          @for (msg of messages; track msg._id || $index) {
+          @for (msg of messages; track msg._id || $index; let i = $index) {
+            @if (shouldShowDateSeparator(i)) {
+              <li class="date-separator">
+                <span>{{ formatDateSeparator(msg.createdAt) }}</span>
+              </li>
+            }
             <li class="message-item"
                 [attr.data-msg-id]="msg._id"
                 [ngClass]="{
@@ -341,11 +346,14 @@
                   'highlighted': msg._id && highlightedMessageId === msg._id
                 }">
               @if (msg.username && msg.username !== username) {
-                <div class="message-author" [style.color]="getUsernameColor(msg.username)">
+                <div
+                  class="message-author message-author-clickable"
+                  [style.color]="getUsernameColor(msg.username)"
+                  (click)="openProfile(msg.username)"
+                  title="Ver perfil">
                   {{ msg.username }}
                 </div>
               }
-
               @if (msg.replyToSnapshot) {
                 <div
                   class="reply-quote"
@@ -474,6 +482,79 @@
               }
             </div>
           }
+
+          @if (showMarkdownCheatsheet) {
+            <div class="cheatsheet-backdrop" (click)="closeMarkdownCheatsheet()"></div>
+            <div class="cheatsheet-popup">
+              <div class="cheatsheet-section">
+                <div class="cheatsheet-title">Formato</div>
+                <div class="cheatsheet-row">
+                  <code>**negrita**</code>
+                  <span>→ <strong>negrita</strong></span>
+                </div>
+                <div class="cheatsheet-row">
+                  <code>*itálica*</code>
+                  <span>→ <em>itálica</em></span>
+                </div>
+                <div class="cheatsheet-row">
+                  <code>~~tachado~~</code>
+                  <span>→ <del>tachado</del></span>
+                </div>
+                <div class="cheatsheet-row">
+                  <code>`código`</code>
+                  <span>→ <code>código</code></span>
+                </div>
+                <div class="cheatsheet-row">
+                  <code>&#64;usuario</code>
+                  <span>→ menciona a alguien</span>
+                </div>
+              </div>
+
+              <div class="cheatsheet-section">
+                <div class="cheatsheet-title">Comandos</div>
+                <div class="cheatsheet-row">
+                  <code>/me &lt;acción&gt;</code>
+                  <span>→ acción en 3ra persona</span>
+                </div>
+                <div class="cheatsheet-row">
+                  <code>/roll [NdM]</code>
+                  <span>→ tira dados</span>
+                </div>
+                <div class="cheatsheet-row">
+                  <code>/coin</code>
+                  <span>→ cara o cruz</span>
+                </div>
+                <div class="cheatsheet-row">
+                  <code>/choose a, b, c</code>
+                  <span>→ elige al azar</span>
+                </div>
+                <div class="cheatsheet-row">
+                  <code>/rainbow texto</code>
+                  <span>→ texto arcoíris</span>
+                </div>
+                <div class="cheatsheet-row">
+                  <code>/clear</code>
+                  <span>→ limpia tu vista</span>
+                </div>
+                <div class="cheatsheet-row">
+                  <code>/help</code>
+                  <span>→ ayuda</span>
+                </div>
+              </div>
+            </div>
+          }
+
+          <button
+            class="cheatsheet-btn"
+            (click)="toggleMarkdownCheatsheet()"
+            title="Ver formato y comandos">
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <circle cx="12" cy="12" r="10"></circle>
+              <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"></path>
+              <line x1="12" y1="17" x2="12.01" y2="17"></line>
+            </svg>
+          </button>
+
           <input
             [(ngModel)]="newMessage"
             (input)="onInputChange($event)"
@@ -489,7 +570,11 @@
         <h4>Usuarios Conectados</h4>
         <ul>
           @for (user of usersInRoom; track user.username) {
-            <li [style.color]="user.nameColor" [title]="user.isGuest ? 'Invitado' : 'Cuenta registrada'">
+            <li
+              [style.color]="user.nameColor"
+              [title]="user.isGuest ? 'Invitado (sin perfil)' : 'Click para ver perfil'"
+              [class.user-list-clickable]="!user.isGuest"
+              (click)="!user.isGuest && openProfile(user.username)">
               {{ user.username }}
               @if (user.isGuest) {
                 <span class="user-list-badge">invitado</span>
@@ -953,6 +1038,112 @@
         <div class="modal-footer">
           <button class="modal-btn secondary" (click)="closeManageRoomModal()">Cerrar</button>
         </div>
+      </div>
+    </div>
+  }
+
+  <!--profile modal-->
+  @if (showProfileModal) {
+    <div class="modal-overlay" (click)="closeProfile()">
+      <div class="modal-content profile-modal" (click)="$event.stopPropagation()">
+
+        @if (profileLoading) {
+          <div class="profile-loading">Cargando perfil...</div>
+        } @else if (profileError && !viewingProfile) {
+          <div class="modal-header">
+            <h3>Error</h3>
+            <button class="modal-close" (click)="closeProfile()">×</button>
+          </div>
+          <div class="modal-body">
+            <div class="auth-error">{{ profileError }}</div>
+          </div>
+        } @else if (viewingProfile) {
+
+          <button class="modal-close profile-close" (click)="closeProfile()" title="Cerrar">×</button>
+
+          <div class="profile-header" [style.background]="viewingProfile.nameColor + '20'">
+            <div class="profile-avatar" [style.background]="viewingProfile.nameColor">
+              {{ getInitials(viewingProfile.username) }}
+            </div>
+            <div class="profile-username" [style.color]="viewingProfile.nameColor">
+              {{ viewingProfile.username }}
+            </div>
+          </div>
+
+          <div class="modal-body">
+
+            <div class="profile-stats">
+              <div class="profile-stat">
+                <div class="profile-stat-label">Miembro desde</div>
+                <div class="profile-stat-value">{{ formatMemberSince(viewingProfile.memberSince) }}</div>
+              </div>
+              <div class="profile-stat">
+                <div class="profile-stat-label">Mensajes</div>
+                <div class="profile-stat-value">{{ viewingProfile.messageCount }}</div>
+              </div>
+            </div>
+
+            <div class="profile-bio-section">
+              <div class="profile-bio-header">
+                <span class="settings-label">Bio</span>
+                @if (isMyProfile() && !isEditingBio) {
+                  <button class="profile-bio-edit" (click)="startEditBio()" title="Editar">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                      <path d="M12 20h9"></path>
+                      <path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"></path>
+                    </svg>
+                  </button>
+                }
+              </div>
+
+              @if (isEditingBio) {
+                <textarea
+                  [(ngModel)]="editingBioValue"
+                  placeholder="Contá algo sobre vos (opcional)"
+                  maxlength="200"
+                  class="profile-bio-input"
+                  rows="3"></textarea>
+                <div class="profile-bio-counter">{{ editingBioValue.length }}/200</div>
+                <div class="profile-bio-actions">
+                  <button class="modal-btn secondary" (click)="cancelEditBio()" [disabled]="isSavingBio">
+                    Cancelar
+                  </button>
+                  <button class="modal-btn primary" (click)="saveBio()" [disabled]="isSavingBio">
+                    {{ isSavingBio ? 'Guardando...' : 'Guardar' }}
+                  </button>
+                </div>
+              } @else {
+                @if (viewingProfile.bio) {
+                  <p class="profile-bio-text">{{ viewingProfile.bio }}</p>
+                } @else {
+                  <p class="profile-bio-empty">
+                    @if (isMyProfile()) {
+                      Todavía no escribiste nada. Click en editar para agregar una bio.
+                    } @else {
+                      Este usuario no tiene bio.
+                    }
+                  </p>
+                }
+              }
+            </div>
+
+            @if (profileError) {
+              <div class="auth-error">{{ profileError }}</div>
+            }
+          </div>
+
+          @if (!isMyProfile() && auth.isLoggedIn()) {
+            <div class="modal-footer">
+              <button class="modal-btn primary profile-dm-btn" (click)="startDmFromProfile()">
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
+                </svg>
+                Mandar DM
+              </button>
+            </div>
+          }
+
+        }
       </div>
     </div>
   }

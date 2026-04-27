@@ -89,6 +89,16 @@ export class AuthService {
     );
   }
 
+  updateBio(bio: string): Observable<AuthUser> {
+    return this.http.patch<AuthUser>(
+      `${environment.apiUrl}/users/me`,
+      { bio },
+      { headers: this.authHeaders() }
+    ).pipe(
+      tap(user => this._currentUser.set(user))
+    );
+  }
+
   getErrorMessage(err: any): string {
     if (err?.error?.error) return err.error.error;
     if (err?.message) return err.message;

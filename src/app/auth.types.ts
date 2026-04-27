@@ -1,6 +1,7 @@
 export interface AuthUser {
   username: string;
   nameColor: string;
+  bio?: string;
 }
 
 export interface AuthResponse {

@@ -8,6 +8,7 @@ import { environment } from '../environments/environment';
 import { DomSanitizer, SafeHtml } from '@angular/platform-browser';
 import { AuthService } from './auth.service';
 import { DmService, ConversationSummary, DmMessage } from './dm.service';
+import { ProfileService, UserProfile } from './profile.service';
 
 interface Message {
   _id?: string;
@@ -76,6 +77,8 @@ export class AppComponent implements OnInit, AfterViewChecked, OnDestroy {
   isSearching = false;
   private searchDebounceTimeout: any;
 
+  showMarkdownCheatsheet = false;
+
   showManageRoomModal = false;
   manageRoomInvited: string[] = [];
   manageRoomInviteInput = '';
@@ -130,6 +133,14 @@ export class AppComponent implements OnInit, AfterViewChecked, OnDestroy {
     '#ec4899', '#14b8a6', '#eab308', '#ef4444'
   ];
 
+  showProfileModal = false;
+  profileLoading = false;
+  profileError = '';
+  viewingProfile: UserProfile | null = null;
+  isEditingBio = false;
+  editingBioValue = '';
+  isSavingBio = false;
+
   showCreateRoomModal = false;
   newRoomName = '';
   newRoomVisibility: 'public' | 'password' | 'invite' = 'public';
@@ -153,7 +164,8 @@ export class AppComponent implements OnInit, AfterViewChecked, OnDestroy {
     private http: HttpClient,
     private sanitizer: DomSanitizer,
     public auth: AuthService,
-    public dm: DmService
+    public dm: DmService,
+    public profileSvc: ProfileService
   ) {}
 
   ngAfterViewChecked() {
@@ -191,8 +203,7 @@ export class AppComponent implements OnInit, AfterViewChecked, OnDestroy {
 
     this.originalTitle = this.document.title;
 
-    this.notificationSound = new Audio('/assets/notification.mp3');
-    this.notificationSound.volume = 0.4;
+    this.notificationSound = new Audio('/universfield-new-notification-010-352755.mp3');
 
     this.document.addEventListener('visibilitychange', () => {
       if (!this.document.hidden) {
@@ -1452,6 +1463,161 @@ export class AppComponent implements OnInit, AfterViewChecked, OnDestroy {
         this.manageRoomError = this.auth.getErrorMessage(err);
       }
     });
+  }
+
+  shouldShowDateSeparator(index: number): boolean {
+    if (index < 0 || index >= this.messages.length) return false;
+    const current = this.messages[index];
+    if (!current.createdAt) return false;
+
+    if (index === 0) return true;
+
+    const previous = this.messages[index - 1];
+    if (!previous.createdAt) return true;
+
+    const currentDate = new Date(current.createdAt);
+    const previousDate = new Date(previous.createdAt);
+
+    return currentDate.toDateString() !== previousDate.toDateString();
+  }
+
+  formatDateSeparator(date: Date | string | undefined): string {
+    if (!date) return '';
+    const d = new Date(date);
+    const today = new Date();
+    const yesterday = new Date();
+    yesterday.setDate(yesterday.getDate() - 1);
+
+    if (d.toDateString() === today.toDateString()) return 'Hoy';
+    if (d.toDateString() === yesterday.toDateString()) return 'Ayer';
+
+    const months = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic'];
+    return `${d.getDate()} ${months[d.getMonth()]} ${d.getFullYear()}`;
+  }
+
+  toggleMarkdownCheatsheet(): void {
+    this.showMarkdownCheatsheet = !this.showMarkdownCheatsheet;
+  }
+
+  closeMarkdownCheatsheet(): void {
+    this.showMarkdownCheatsheet = false;
+  }
+
+  openProfile(username: string | undefined): void {
+    if (!username) return;
+
+    const userInRoom = this.usersInRoom.find(u => u.username === username);
+    if (userInRoom?.isGuest) {
+      alert(`${username} es un usuario invitado, no tiene perfil.`);
+      return;
+    }
+
+    this.showProfileModal = true;
+    this.profileLoading = true;
+    this.profileError = '';
+    this.viewingProfile = null;
+    this.isEditingBio = false;
+
+    this.profileSvc.getProfile(username).subscribe({
+      next: (profile) => {
+        this.viewingProfile = profile;
+        this.profileLoading = false;
+        this.cdr.detectChanges();
+      },
+      error: (err) => {
+        this.profileLoading = false;
+        this.profileError = this.auth.getErrorMessage(err);
+        this.cdr.detectChanges();
+      }
+    });
+  }
+
+  closeProfile(): void {
+    this.showProfileModal = false;
+    this.viewingProfile = null;
+    this.isEditingBio = false;
+    this.editingBioValue = '';
+    this.profileError = '';
+  }
+
+  isMyProfile(): boolean {
+    return !!(this.viewingProfile && this.auth.isLoggedIn() &&
+              this.viewingProfile.username === this.auth.currentUser()?.username);
+  }
+
+  startEditBio(): void {
+    if (!this.viewingProfile) return;
+    this.editingBioValue = this.viewingProfile.bio || '';
+    this.isEditingBio = true;
+    this.profileError = '';
+  }
+
+  cancelEditBio(): void {
+    this.isEditingBio = false;
+    this.editingBioValue = '';
+  }
+
+  saveBio(): void {
+    if (this.editingBioValue.length > 200) {
+      this.profileError = 'La bio no puede superar los 200 caracteres';
+      return;
+    }
+
+    this.isSavingBio = true;
+    this.profileError = '';
+
+    this.auth.updateBio(this.editingBioValue).subscribe({
+      next: (user) => {
+        this.isSavingBio = false;
+        this.isEditingBio = false;
+        if (this.viewingProfile) {
+          this.viewingProfile = { ...this.viewingProfile, bio: user.bio || '' };
+        }
+        this.cdr.detectChanges();
+      },
+      error: (err) => {
+        this.isSavingBio = false;
+        this.profileError = this.auth.getErrorMessage(err);
+      }
+    });
+  }
+
+  startDmFromProfile(): void {
+    if (!this.viewingProfile) return;
+    if (!this.auth.isLoggedIn()) {
+      this.profileError = 'Necesitás estar logueado para mandar DMs';
+      return;
+    }
+    if (this.isMyProfile()) return;
+
+    const target = this.viewingProfile.username;
+    this.closeProfile();
+
+    this.dm.openConversation(target).subscribe({
+      next: (conv) => {
+        this.dm.openDmFromConversation(conv);
+        const dmState = this.dm.openDms().find(d => d.conversationId === conv._id);
+        if (dmState && !dmState.loadedHistory) {
+          this.loadDmHistory(conv._id);
+        }
+        this.markDmAsReadIfPossible(conv._id);
+      },
+      error: (err) => {
+        alert(`No se pudo abrir DM: ${this.auth.getErrorMessage(err)}`);
+      }
+    });
+  }
+
+  getInitials(username: string): string {
+    if (!username) return '?';
+    return username.substring(0, 2).toUpperCase();
+  }
+
+  formatMemberSince(iso: string | undefined): string {
+    if (!iso) return '';
+    const d = new Date(iso);
+    const months = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic'];
+    return `${months[d.getMonth()]} ${d.getFullYear()}`;
   }
 
 }
